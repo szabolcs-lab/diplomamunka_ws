@@ -1,0 +1,4 @@
+map_publication:
+  ros__parameters:
+    use_sim_time: false 
+    map_file: 'occupancy_grid_1.csv'

@@ -1,0 +1,2 @@
+timestamp,algorithm,map_name,planning_time (sec),path_length (meter),memory (MB),cpu_percent (%),computation_load (db)
+2025-11-16 17:07:44,RRT_star,occupancy_grid_1.csv,0.39013198199972976,48.57190897804708,58.78515625,33.5,827

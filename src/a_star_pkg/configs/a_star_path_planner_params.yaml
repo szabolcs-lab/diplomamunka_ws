@@ -1,0 +1,5 @@
+a_star_path_planner:
+  ros__parameters:
+    use_sim_time: false 
+    margin: 0.5
+    resample_step: 0.1
