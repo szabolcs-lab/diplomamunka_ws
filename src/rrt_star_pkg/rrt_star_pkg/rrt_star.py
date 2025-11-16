@@ -20,8 +20,8 @@ class RRTStar:
                  goal_sample_rate=0.05, rewire_radius=6):
         self.grid = grid
         self.height, self.width = grid.shape
-        self.start = Node(start[0], start[1])  # (y, x)
-        self.goal = Node(goal[0], goal[1])      # (y, x)
+        self.start = Node(start[0], start[1])  
+        self.goal = Node(goal[0], goal[1])      
         self.max_iter = max_iter
         self.step_len = step_len
         self.goal_sample_rate = goal_sample_rate
@@ -52,10 +52,8 @@ class RRTStar:
             self.processed_nodes += 1
 
             if node_distance(new_node, self.goal) < self.step_len:
-                print(f"[RRT*] Goal reached at iteration {i}")
                 return self.extract_path(new_node)
 
-        print("[RRT*] Goal not reached within iterations.")
         return None
 
     # segédfüggvények
