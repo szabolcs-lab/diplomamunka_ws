@@ -32,21 +32,21 @@ controller_server:
 
       # sebességek
       desired_linear_vel: 0.25
-      max_linear_accel: 0.5
-      max_angular_accel: 1.0
+      max_linear_accel: 0.3
+      max_angular_accel: 0.7
 
       # lookahead - szorosabb pályakövetéshez
-      lookahead_dist: 0.3
+      lookahead_dist: 0.2
       min_lookahead_dist: 0.2
       max_lookahead_dist: 0.4
-      use_velocity_scaled_lookahead_dist: false
+      use_velocity_scaled_lookahead_dist: true
 
       # induláskor forduljon rá a path-ra
       use_rotate_to_heading: true
-      rotate_to_heading_min_angle: 0.3  # ~17 fok
+      rotate_to_heading_min_angle: 0.2  # ~17 fok
 
       use_approach_velocity_scaling: true
-      approach_velocity_scaling_dist: 0.6
+      approach_velocity_scaling_dist: 0.5
       transform_tolerance: 0.1
 
       # pályakövetés finomhangolás
