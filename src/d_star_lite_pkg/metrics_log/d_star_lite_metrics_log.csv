@@ -1,0 +1,2 @@
+timestamp,algorithm,map_name,planning_time (sec),path_length (meter),memory (MB),cpu_percent (%),computation_load (db)
+2025-11-21 19:04:34,D_Star_Lite,occupancy_grid_1.csv,2.9387480660000733,44.81228646871802,64.28515625,76.4,94064
