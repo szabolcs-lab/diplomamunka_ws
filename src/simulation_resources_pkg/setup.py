@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'simulation_resources'
+package_name = 'simulation_resources_pkg'
 
 setup(
     name=package_name,
@@ -15,8 +15,8 @@ setup(
     zip_safe=True,
     maintainer='ajr',
     maintainer_email='stippinger.szabolcs@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Maps generate package',
+    license='Szabolcs Stippinger',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

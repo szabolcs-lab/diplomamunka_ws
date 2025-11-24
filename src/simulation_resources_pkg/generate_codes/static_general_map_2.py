@@ -162,7 +162,7 @@ def generate_sdf(walls, grid_size_x, grid_size_y):
 '''
     robot_model = f"""
             <include>
-                <uri>file://./my_robot_3.sdf</uri>
+                <uri>file://../models/my_robot_3.sdf</uri>
                 <pose>-10 10 0 0 0 0</pose>
             </include>
         """
@@ -213,8 +213,13 @@ def main():
     # Occupancy grid generálása
     grid = generate_occupancy_grid(walls, grid_size_x, grid_size_y, resolution)
     
-    dir_csv = os.path.join(pkg_share, "maps")
-    dir_sdf = os.path.join(pkg_share, "worlds")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    
+    dir_csv = os.path.join(base_dir, "maps")
+    dir_sdf = os.path.join(base_dir, "worlds")
+    
+    os.makedirs(dir_csv, exist_ok=True)
+    os.makedirs(dir_sdf, exist_ok=True)
     
     name_csv = "occupancy_grid_2.csv"
     name_sdf = "custom_world_2.sdf"
