@@ -7,3 +7,5 @@ timestamp,algorithm,map_name,planning_time (sec),path_length (meter),memory (MB)
 2025-11-21 20:21:27,A_star,occupancy_grid_1.csv,0.36420096900019416,44.69840828216249,57.90625,34.1,25922
 2025-11-24 07:58:04,A_star,occupancy_grid_1.csv,0.1875352310000835,44.69840828216249,85.28125,21.4,25922
 2025-11-24 07:59:55,A_star,occupancy_grid_1.csv,0.16702545200018903,44.69840828216249,90.41796875,20.1,25922
+2025-11-24 13:57:32,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.1891172479990928,44.69840828216249,81.4375,20.6,25922
+2025-11-24 14:21:39,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.1970304530004796,44.69840828216249,81.1640625,22.1,25922

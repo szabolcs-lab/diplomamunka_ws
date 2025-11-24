@@ -2,21 +2,22 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from ament_index_python.packages import get_package_share_directory
 import os
 
 def generate_launch_description():
     
     package_dir = get_package_share_directory('d_star_lite_pkg')
+    simulation_resources_dir = get_package_share_directory('simulation_resources_pkg')
+    simulation_resources_maps_dir = os.path.join(simulation_resources_dir, 'maps')
+    map_file_arg = DeclareLaunchArgument('map_file', default_value='occupancy_grid_1.csv',)
+    full_map_path = PathJoinSubstitution([simulation_resources_maps_dir, LaunchConfiguration('map_file')])
+    
     map_publication_parameter_file = os.path.join(package_dir, 'configs', 'map_publication_params.yaml')
     path_planner_parameter_file = os.path.join(package_dir, 'configs', 'd_star_lite_path2_planner_params.yaml')
     nav2_bringup_launch = os.path.join(package_dir, 'launch', 'nav2_bringup.launch.py')
     
-    map_file_arg = DeclareLaunchArgument(
-        'map_file',
-        default_value='occupancy_grid_1.csv',
-    )
     
     # 1) map -> OccupancyGrid /map
     map_publication = Node(
@@ -24,7 +25,7 @@ def generate_launch_description():
         executable='map_publication',
         name='map_publication',
         output='screen',
-        parameters=[map_publication_parameter_file, {'map_file': LaunchConfiguration('map_file')}]
+        parameters=[map_publication_parameter_file, {'map_file': full_map_path}]
     )
     
     # 2) D* Lite path planner -> /planned_path_dilated (frame: map)
@@ -33,7 +34,7 @@ def generate_launch_description():
         executable='d_star_lite_path_planner',
         name='d_star_lite_path_planner',
         output='screen',
-        parameters=[path_planner_parameter_file, {'map_file': LaunchConfiguration('map_file')}], 
+        parameters=[path_planner_parameter_file, {'map_file': full_map_path}], 
     )
     
     # 3) RViz

@@ -14,14 +14,11 @@ class MapPublication(Node):
         
         self.get_logger().info('map_publication node is initialization....')
         
-        self.declare_parameter('map_file', 'occupancy_grid_1.csv')
+        self.declare_parameter('map_file', '')
         map_file = self.get_parameter('map_file').get_parameter_value().string_value
-        
-        maps_dir = os.path.join(get_package_share_directory('rrt_star_pkg'), 'maps')
-        csv_path = os.path.join(maps_dir, map_file)
-        
-        self.get_logger().info(f"Loading occupancy grid from: {csv_path}")
-        self.grid = np.loadtxt(csv_path, delimiter=',').astype(np.int8)
+                
+        self.get_logger().info(f"Loading occupancy grid from: {map_file}")
+        self.grid = np.loadtxt(map_file, delimiter=',').astype(np.int8)
         
         qos = QoSProfile(depth=1)
         qos.reliability = ReliabilityPolicy.RELIABLE

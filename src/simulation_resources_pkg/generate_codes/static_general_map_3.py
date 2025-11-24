@@ -162,7 +162,7 @@ def generate_sdf(walls, grid_size_x, grid_size_y):
 '''
     robot_model = f"""
             <include>
-                <uri>file://../models/my_robot_3.sdf</uri>
+                <uri>file://../model/my_robot_3.sdf</uri>
                 <pose>-10 10 0 0 0 0</pose>
             </include>
         """

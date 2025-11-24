@@ -1,2 +1,5 @@
 timestamp,algorithm,map_name,planning_time (sec),path_length (meter),memory (MB),cpu_percent (%),computation_load (db)
 2025-11-21 19:04:34,D_Star_Lite,occupancy_grid_1.csv,2.9387480660000733,44.81228646871802,64.28515625,76.4,94064
+2025-11-24 10:12:07,D_Star_Lite,occupancy_grid_1.csv,1.8116989489999469,44.81228646871802,91.0546875,66.7,94064
+2025-11-24 14:14:41,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,2.014543009998306,44.81228646871802,80.8828125,70.1,94064
+2025-11-24 14:25:24,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,2.031991726002161,44.81228646871802,97.03125,69.2,94064
