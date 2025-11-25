@@ -7,6 +7,7 @@ import rclpy
 from rclpy.node import Node
 
 from nav_msgs.msg import Path
+from geometry_msgs.msg import PoseStamped
 from ament_index_python.packages import get_package_share_directory
 
 
@@ -37,6 +38,8 @@ class DynamicObstacleSpawner(Node):
 
         # Feliratkozás az ideális útvonalra
         self.create_subscription(Path, 'planned_path_dilated', self.path_callback, 10)
+        
+        self.obstacle_pub = self.create_publisher(PoseStamped, 'dynamic_obstacle', 10)
 
         # Periodikus timer
         self.create_timer(0.5, self.timer_callback)
@@ -132,6 +135,20 @@ class DynamicObstacleSpawner(Node):
                 f'stdout:\n{result.stdout}\n'
                 f'stderr:\n{result.stderr}'
             )
+            
+    def publish_dynamic_obstacle(self, x: float, y: float, z: float):
+        msg = PoseStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'map'   # a path is map frame-ben van
+
+        msg.pose.position.x = x
+        msg.pose.position.y = y
+        msg.pose.position.z = z
+
+        msg.pose.orientation.w = 1.0
+
+        self.obstacle_pub.publish(msg)
+        self.get_logger().info(f'Dynamic obstacle published on /dynamic_obstacle at (x={x:.2f}, y={y:.2f})')
 
 
 def main(args=None):
