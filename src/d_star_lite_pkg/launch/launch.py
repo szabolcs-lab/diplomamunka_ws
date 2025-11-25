@@ -15,7 +15,7 @@ def generate_launch_description():
     full_map_path = PathJoinSubstitution([simulation_resources_maps_dir, LaunchConfiguration('map_file')])
     
     map_publication_parameter_file = os.path.join(package_dir, 'configs', 'map_publication_params.yaml')
-    path_planner_parameter_file = os.path.join(package_dir, 'configs', 'd_star_lite_path2_planner_params.yaml')
+    path_planner_parameter_file = os.path.join(package_dir, 'configs', 'd_star_lite_path_planner_params.yaml')
     nav2_bringup_launch = os.path.join(package_dir, 'launch', 'nav2_bringup.launch.py')
     
     
@@ -88,6 +88,18 @@ def generate_launch_description():
         output='screen'
     )
     
+    # 8) Ignition /spawn_entity bridge
+    spawn_entity_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='spawn_entity_bridge',
+        output='screen',
+        arguments=[
+            '/world/custom_world/create@ros_ign_interfaces/srv/SpawnEntity@ignition.msgs.EntityFactory@ignition.msgs.Boolean'
+        ]
+    )
+
+    
     return LaunchDescription([
         map_file_arg,
         map_publication,
@@ -97,4 +109,5 @@ def generate_launch_description():
         gz_cmd_vel_bridge,
         gz_bridge_odom,
         tf_broadcaster,
+        #spawn_entity_bridge
     ])

@@ -15,11 +15,12 @@ setup(
     zip_safe=True,
     maintainer='ajr',
     maintainer_email='stippinger.szabolcs@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Dynamic Obstacles Spawner',
+    license='Szabolcs Stippinger',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'dynamic_obstacle = dynamic_obstacles_pkg.dynamic_obstacle:main'
         ],
     },
 )

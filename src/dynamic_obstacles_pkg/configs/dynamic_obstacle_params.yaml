@@ -1,0 +1,13 @@
+dynamic_obstacle:
+  ros__parameters:
+    min_delay: 12.0
+    max_delay: 24.0
+
+    world_name: "custom_world"
+
+    model_package: "simulation_resources_pkg"
+    model_relative_path: "worlds/dynamic_box.sdf"
+
+    obstacle_name: "dynamic_obstacle"
+
+    obstacle_z: 0.0
