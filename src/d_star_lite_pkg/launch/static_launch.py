@@ -56,9 +56,7 @@ def generate_launch_description():
         executable='tf_broadcaster',
         name='tf_broadcaster',
         output='screen',
-        parameters=[{
-            'odom_topic': '/odom'
-        }]
+        parameters=[{'odom_topic': '/odom'}]
     )
     
     # 6) ROS /cmd_vel -> Ignition /cmd_vel
@@ -67,10 +65,7 @@ def generate_launch_description():
         executable='parameter_bridge',
         name='gz_cmd_vel_bridge',
         output='screen',
-        arguments=[
-            # ROS -> IGN
-            '/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist'
-        ]
+        arguments=['/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist']
     )
     
     # 7) Ignition odometry -> ROS /odom
@@ -78,27 +73,11 @@ def generate_launch_description():
         package='ros_gz_bridge',
         executable='parameter_bridge',
         name='bridge_odom',
-        arguments=[
-            # IGN -> ROS /odom
-            '/model/vehicle_blue/odometry@nav_msgs/msg/Odometry[ignition.msgs.Odometry'
-        ],
-        remappings=[
-            ('/model/vehicle_blue/odometry', '/odom')
-        ],
+        arguments=['/model/vehicle_blue/odometry@nav_msgs/msg/Odometry[ignition.msgs.Odometry'],
+        remappings=[('/model/vehicle_blue/odometry', '/odom')],
         output='screen'
     )
     
-    # 8) Ignition /spawn_entity bridge
-    spawn_entity_bridge = Node(
-        package='ros_gz_bridge',
-        executable='parameter_bridge',
-        name='spawn_entity_bridge',
-        output='screen',
-        arguments=[
-            '/world/custom_world/create@ros_ign_interfaces/srv/SpawnEntity@ignition.msgs.EntityFactory@ignition.msgs.Boolean'
-        ]
-    )
-
     
     return LaunchDescription([
         map_file_arg,
@@ -109,5 +88,4 @@ def generate_launch_description():
         gz_cmd_vel_bridge,
         gz_bridge_odom,
         tf_broadcaster,
-        #spawn_entity_bridge
     ])

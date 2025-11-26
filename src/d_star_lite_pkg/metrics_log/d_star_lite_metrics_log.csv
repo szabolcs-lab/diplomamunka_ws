@@ -28,3 +28,12 @@ timestamp,algorithm,map_name,planning_time (sec),path_length (meter),memory (MB)
 2025-11-25 13:49:02,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,2.1098948100006965,44.81228646871802,105.46875,108.5,94064
 2025-11-25 14:13:16,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,2.0561309340009757,44.81228646871802,99.234375,101.5,94064
 2025-11-25 14:18:53,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,1.6837902219995158,44.81228646871802,91.3515625,102.7,94064
+2025-11-26 09:30:22,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,2.0221678739999334,44.81228646871802,82.671875,68.7,94064
+2025-11-26 09:54:50,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,1.8255507479998414,44.81228646871802,80.98828125,66.6,94064
+2025-11-26 10:01:12,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,1.9864832949997435,44.81228646871802,76.98046875,68.0,94064
+2025-11-26 10:26:05,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,2.090504802000396,44.81228646871802,78.76171875,69.8,94064
+2025-11-26 10:36:10,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,1.5188102609999987,44.81228646871802,83.66796875,62.6,94064
+2025-11-26 11:19:49,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,1.4667364189990622,44.81228646871802,90.640625,61.4,94064
+2025-11-26 11:28:39,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,2.0875183930002095,44.81228646871802,85.04296875,69.9,94064
+2025-11-26 12:42:29,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,2.0068285940014903,44.81228646871802,99.1015625,67.9,94064
+2025-11-26 14:04:51,D_Star_Lite,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,2.085662368001067,44.81228646871802,78.9765625,70.7,94064

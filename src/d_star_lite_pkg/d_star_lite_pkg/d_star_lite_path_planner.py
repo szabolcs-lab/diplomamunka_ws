@@ -32,6 +32,8 @@ class DStarLitePathPlanner(Node):
         self.grid = None
         self.metrics_logged = False
         self.map_file = self.get_parameter('map_file').get_parameter_value().string_value
+        self.map_info = None # OccupancyGrid.info elmentve
+        self.planner = None # DStarLite példány
         
         self.process_obj = psutil.Process(os.getpid())
         self.process_obj.cpu_percent(interval=None)
@@ -42,7 +44,7 @@ class DStarLitePathPlanner(Node):
         
         self.map_subscription = self.create_subscription(OccupancyGrid, 'map', self.map_callback, qos)    
         self.path_pub = self.create_publisher(Path, 'planned_path_dilated', qos)
-        
+             
         self.package_dir = os.path.expanduser('~/diplomamunka_ws/src/d_star_lite_pkg')
         self.metrics_log_dir = os.path.join(self.package_dir,'metrics_log')
         os.makedirs(self.metrics_log_dir, exist_ok=True)         
@@ -59,43 +61,81 @@ class DStarLitePathPlanner(Node):
     def map_callback(self, msg: OccupancyGrid):
         
         try:
+            
+            if self.planner is not None:
+                self.get_logger().info("Static map already processed, ignoring further map messages.")
+                return
+            
             self.get_logger().info(f"Map arrived: {msg.info.width}x{msg.info.height}, res={msg.info.resolution:.3f}")
             
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-            grid = np.array(msg.data).reshape((msg.info.height, msg.info.width))
-            self.grid = (grid > 50).astype(np.int8)
+            grid_raw = np.array(msg.data).reshape((msg.info.height, msg.info.width))
+            grid_bin = (grid_raw > 50).astype(np.int8)
 
             margin_m = self.get_parameter('margin').get_parameter_value().double_value
             cells_radius = max(1, int(math.ceil(margin_m / float(msg.info.resolution))))
-            self.grid = self.dilate_obstacles(self.grid, cells_radius)
-           
-            self.get_logger().info("compute start")
-            planner = DStarLite(self.grid, self.start, self.goal)
-           
-            t0 = time.perf_counter() 
-            planner.compute_shortest_path()
-            t1 = time.perf_counter()
-            planning_time = t1 - t0   
-            self.get_logger().info("compute done")
+            grid_dilated = self.dilate_obstacles(grid_bin, cells_radius)
             
-            path_cells = planner.get_path()
-            self.get_logger().info(f"planned cells: {len(path_cells)}")
+            if self.planner is None:
+                self.grid = grid_dilated.copy()    
+                self.get_logger().info("compute start")
+                planner = DStarLite(self.grid, self.start, self.goal)
             
-            path_length = 0.0
-            
-            if path_cells:
-                path_length = self.path_publish(path_cells, msg.info)
-            else:
-                self.get_logger().warn("Nem talált útvonalat a dilatált rácson.")
+                t0 = time.perf_counter() 
+                planner.compute_shortest_path()
+                t1 = time.perf_counter()
+                planning_time = t1 - t0   
+                self.get_logger().info("compute done")
                 
-            used_ram, cpu_percent = self.measure_resources()
+                path_cells = planner.get_path()
+                self.get_logger().info(f"planned cells: {len(path_cells)}")
+                
+                path_length = 0.0
+                
+                if path_cells:
+                    path_length = self.path_publish(path_cells, msg.info)
+                else:
+                    self.get_logger().warn("Nem talált útvonalat a dilatált rácson.")
+                    
+                used_ram, cpu_percent = self.measure_resources()
+                
+                if not self.metrics_logged:
+                    with open(self.metrics_log_file, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow([timestamp, 'D_Star_Lite', self.map_file, planning_time, path_length, used_ram, cpu_percent, planner.processed_nodes])
+                    self.metrics_logged = True
+                    
+                return
             
-            if not self.metrics_logged:
-                with open(self.metrics_log_file, 'a', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow([timestamp, 'D_Star_Lite', self.map_file, planning_time, path_length, used_ram, cpu_percent, planner.processed_nodes])
-                self.metrics_logged = True
+            diff_mask = (self.grid != grid_dilated)
+            ys, xs = np.where(diff_mask)
+
+            if len(ys) == 0:
+                self.get_logger().info("No changes in grid, skipping incremental replan.")
+                return
+
+            self.get_logger().info(f"{len(ys)} cell changed, applying incremental updates.")
+
+            for ry, cx in zip(ys, xs):
+                is_obstacle = (self.grid_dilate[ry, cx] == 1)
+                # D* belső gridje (és ezzel self.grid is) itt frissül
+                self.planner.update_obstacle((ry, cx), is_obstacle)
+
+            # inkrementális újratervezés
+            self.get_logger().info("compute start (incremental)")
+            t0 = time.perf_counter()
+            self.planner.compute_shortest_path()
+            t1 = time.perf_counter()
+            planning_time = t1 - t0
+            self.get_logger().info(f"compute done (incremental), dt={planning_time:.4f}s")
+
+            path_cells = self.planner.get_path()
+            if not path_cells:
+                self.get_logger().warn("Dynamic obstacle után nem talált új útvonalat.")
+                return
+
+            self.path_publish(path_cells, msg.info)
                 
         except Exception as e:
             self.get_logger().error(f"map_callback failed: {e}\n{traceback.format_exc()}")

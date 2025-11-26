@@ -37,11 +37,7 @@ def generate_launch_description():
         executable='lifecycle_manager',
         name='lifecycle_manager_controller',
         output='screen',
-        parameters=[{
-            'use_sim_time': True,
-            'autostart': True,
-            'node_names': ['controller_server']
-        }]
+        parameters=[{'use_sim_time': True, 'autostart': True, 'node_names': ['controller_server']}]
     )
     
     static_map_to_odom = Node(

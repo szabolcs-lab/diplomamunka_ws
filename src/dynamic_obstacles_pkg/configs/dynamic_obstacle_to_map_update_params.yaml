@@ -1,0 +1,6 @@
+dynamic_obstacle_to_map_update:
+  ros__parameters:
+    static_map_topic: "map"
+    dynamic_map_topic: "map_dynamic"
+    obstacle_half_extent_x: 0.25   # SDF size X/2  → 0.5 / 2
+    obstacle_half_extent_y: 1.25   # SDF size Y/2  → 2.5 / 2

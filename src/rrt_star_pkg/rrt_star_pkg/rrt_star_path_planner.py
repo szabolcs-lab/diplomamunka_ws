@@ -61,13 +61,15 @@ class RRTStarPathPlanner(Node):
     def map_callback(self, msg: OccupancyGrid):
         
         try:
+                      
             self.get_logger().info(f"Map arrived: {msg.info.width}x{msg.info.height}, res={msg.info.resolution:.3f}")
             
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             path_length = 0.0
-
+            
             if self.path_computed: 
-                self.path_publish(self.last_path, msg.info)
+                if self.last_path is not None:
+                    self.path_publish(self.last_path, msg.info)
                 return 
             
             grid = np.array(msg.data).reshape((msg.info.height, msg.info.width))
@@ -101,6 +103,7 @@ class RRTStarPathPlanner(Node):
                     writer = csv.writer(f)
                     writer.writerow([timestamp, 'RRT_star', self.map_file, planning_time, path_length, used_ram, cpu_percent, planner.processed_nodes])
                 self.metrics_logged = True
+                
                 
         except Exception as e:
             self.get_logger().error(f"map_callback failed: {e}\n{traceback.format_exc()}")

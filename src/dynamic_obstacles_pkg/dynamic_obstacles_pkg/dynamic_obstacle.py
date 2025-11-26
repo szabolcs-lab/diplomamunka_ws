@@ -5,6 +5,7 @@ import subprocess
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
@@ -24,6 +25,10 @@ class DynamicObstacleSpawner(Node):
         # Modell elérési út (simulation_resources_pkg/worlds/dynamic_box.sdf)
         pkg_share = get_package_share_directory('simulation_resources_pkg')
         self.model_path = os.path.join(pkg_share, 'worlds', 'dynamic_box.sdf')
+        
+        qos_obstacle = QoSProfile(depth=10)
+        qos_obstacle.reliability = ReliabilityPolicy.RELIABLE
+        qos_obstacle.durability = DurabilityPolicy.VOLATILE
 
         # Random késleltetés
         self.delay = random.uniform(self.min_delay, self.max_delay)
@@ -39,7 +44,7 @@ class DynamicObstacleSpawner(Node):
         # Feliratkozás az ideális útvonalra
         self.create_subscription(Path, 'planned_path_dilated', self.path_callback, 10)
         
-        self.obstacle_pub = self.create_publisher(PoseStamped, 'dynamic_obstacle', 10)
+        self.obstacle_pub = self.create_publisher(PoseStamped, 'dynamic_obstacle', qos_obstacle)
 
         # Periodikus timer
         self.create_timer(0.5, self.timer_callback)
@@ -68,7 +73,10 @@ class DynamicObstacleSpawner(Node):
 
         x = pose.pose.position.x
         y = pose.pose.position.y
+        
         self.spawn_obstacle(x, y, self.obstacle_z)
+        self.publish_dynamic_obstacle(x, y, self.obstacle_z)
+        
         self.spawned = True
 
     # Path feldolgozás

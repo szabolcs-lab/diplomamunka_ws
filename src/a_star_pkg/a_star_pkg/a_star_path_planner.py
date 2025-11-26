@@ -33,6 +33,8 @@ class AStarPathPlanner(Node):
         self.map_file = self.get_parameter('map_file').get_parameter_value().string_value   
         self.grid = None
         self.metrics_logged = False
+        self.path_computed = False
+        self.last_path = None
         
         self.process_obj = psutil.Process(os.getpid())
         self.process_obj.cpu_percent(interval=None)
@@ -59,11 +61,20 @@ class AStarPathPlanner(Node):
         
     
     def map_callback(self, msg: OccupancyGrid):
-        
+             
         try:
+                    
             self.get_logger().info(f"Map arrived: {msg.info.width}x{msg.info.height}, res={msg.info.resolution:.3f}")
                    
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            if self.path_computed:
+                if self.last_path is not None:
+                    self.get_logger().info("Path already computed, republishing last_path.")
+                    self.path_publish(self.last_path, msg.info)
+                else:
+                    self.get_logger().warn("path_computed=True, de last_path None?!")
+                return
 
             # OccupancyGrid -> bináris rács: 1=akadály, 0=szabad
             grid = np.array(msg.data).reshape((msg.info.height, msg.info.width))
@@ -87,7 +98,9 @@ class AStarPathPlanner(Node):
             path_length = 0.0
             
             if path_cells:
+                self.last_path = path_cells
                 path_length = self.path_publish(path_cells, msg.info)
+                self.path_computed = True
             else:
                 self.get_logger().warn("Nem talált útvonalat a dilatált rácson.")
                 
@@ -98,7 +111,7 @@ class AStarPathPlanner(Node):
                     writer = csv.writer(f)
                     writer.writerow([timestamp, 'A_star', self.map_file, planning_time, path_length, used_ram, cpu_percent, planner.processed_nodes])
                 self.metrics_logged = True
-                
+                             
         except Exception as e:
             self.get_logger().error(f"map_callback failed: {e}\n{traceback.format_exc()}")
             

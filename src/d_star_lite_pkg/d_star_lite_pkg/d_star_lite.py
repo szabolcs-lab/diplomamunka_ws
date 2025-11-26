@@ -140,7 +140,7 @@ class DStarLite():
                 self.insert(u, k_new)
 
             elif self.g[u] > self.rhs[u]:
-                # g javult -> PRO-PAGÁLJ a szomszédoknak
+                # g javult -> értesítjük a szomszédokat
                 self.g[u] = self.rhs[u]
                 for n in self.get_neighbors(self.grid, u):
                     self.update_vertex(n)
@@ -157,12 +157,15 @@ class DStarLite():
                     self.update_vertex(n)
                     
     def update_obstacle(self, node, is_obstacle):
-        x, y = node
-        self.grid[x][y] = 1 if is_obstacle else 0 
-        
+        ry, cx = node
+
+        # rács frissítése: 1 = akadály, 0 = szabad
+        self.grid[ry, cx] = 1 if is_obstacle else 0 
+
         self.k_m += self.heuristic(self.start_last, self.start)
         self.start_last = self.start  
-        
+
+        # érintett csúcsok frissítése
         self.update_vertex(node)
         for n in self.get_neighbors(self.grid, node):
             self.update_vertex(n)
