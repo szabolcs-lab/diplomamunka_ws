@@ -45,7 +45,7 @@ def generate_launch_description():
         executable='d_star_lite_path_planner',
         name='d_star_lite_path_planner',
         output='screen',
-        parameters=[path_planner_parameter_file, {'map_file': full_map_path}],
+        parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'dynamic'}],
         remappings=[('map', 'map_dynamic'),]
     )
     

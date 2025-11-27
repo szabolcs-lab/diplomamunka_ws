@@ -3,3 +3,4 @@ a_star_path_planner:
     use_sim_time: false 
     margin: 0.5
     resample_step: 0.1
+    scenario: "static"

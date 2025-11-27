@@ -29,7 +29,7 @@ def generate_launch_description():
         executable='map_publication',
         name='map_publication',
         output='screen',
-        parameters=[map_publication_parameter_file, {'map_file': full_map_path}]
+        parameters=[map_publication_parameter_file, {'map_file': full_map_path}, {'scenario': 'dynamic'}]
     )
     
     # 2) Dinamikus akadály miatt

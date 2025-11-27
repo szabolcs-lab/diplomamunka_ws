@@ -26,7 +26,7 @@ class AStarPathPlanner(Node):
         self.declare_parameter('margin', 0.5)
         self.declare_parameter('resample_step', 0.1)
         self.declare_parameter('map_file', 'unknown.csv')
-        
+        self.declare_parameter('scenario', 'static')
          
         self.start = (199, 0)
         self.goal  = (0, 199) 
@@ -35,6 +35,7 @@ class AStarPathPlanner(Node):
         self.metrics_logged = False
         self.path_computed = False
         self.last_path = None
+        self.scenario = self.get_parameter('scenario').get_parameter_value().string_value
         
         self.process_obj = psutil.Process(os.getpid())
         self.process_obj.cpu_percent(interval=None)
@@ -107,9 +108,10 @@ class AStarPathPlanner(Node):
             used_ram, cpu_percent = self.measure_resources()
             
             if not self.metrics_logged:
+                map_name_for_log = f"{self.map_file}_{self.scenario}"
                 with open(self.metrics_log_file, 'a', newline='') as f:
                     writer = csv.writer(f)
-                    writer.writerow([timestamp, 'A_star', self.map_file, planning_time, path_length, used_ram, cpu_percent, planner.processed_nodes])
+                    writer.writerow([timestamp, 'A_star', map_name_for_log, planning_time, path_length, used_ram, cpu_percent, planner.processed_nodes])
                 self.metrics_logged = True
                              
         except Exception as e:

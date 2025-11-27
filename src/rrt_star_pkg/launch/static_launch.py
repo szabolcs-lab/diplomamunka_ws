@@ -34,7 +34,7 @@ def generate_launch_description():
         executable='rrt_star_path_planner',
         name='rrt_star_path_planner',
         output='screen',
-        parameters=[path_planner_parameter_file, {'map_file': full_map_path}]
+        parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}]
     )
     
     # 3) RViz
