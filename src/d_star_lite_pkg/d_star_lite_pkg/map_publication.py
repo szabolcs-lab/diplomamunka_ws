@@ -4,14 +4,12 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import Header
 from nav_msgs.msg import MapMetaData
-import os
 import numpy as np
-from ament_index_python.packages import get_package_share_directory
 
 class MapPublication(Node):
     
     """
-    A node egy OccupancyGridet fog publikálni a 'map' topicon, ami egy csv-ből betöltött rácstérkép
+    A node egy OccupancyGridet fog publikálni a 'map' topicon, amit egy csv-ből olvas be
     """
     
     def __init__(self):
@@ -19,55 +17,55 @@ class MapPublication(Node):
         
         self.get_logger().info('Map publication node elindult....')
         
-        # Paraméter beolvasás
+        # Beolvassuk a paramétert, amit launch fájlban teszünk össze, az indítás során megadott paraméter és a PathJoinSubstitution összefüzésével
         self.declare_parameter('map_file', '')
         map_file = self.get_parameter('map_file').get_parameter_value().string_value
         
-        # CSV beolvasás int8 mátrixként     
-        self.get_logger().info(f"Occupany grid betöltés a : {map_file} -ból")
+        # map_file-ban lévő elérési út mutatja meg, hogy hol a csv. Ezt a csv-t beolvassuk egy numpy tömbként és letároljuk 
         self.grid = np.loadtxt(map_file, delimiter=',').astype(np.int8)
        
-        # Ezzel biztosítjuk, hogy minden node mindig megkapja a legfrissebb állapotot
-        # Ha egy robot később indul, akkor azonnal megkapja a legfrissebb térképet
-        qos = QoSProfile(depth=1) # Csak az utolsó üzenet marad a bufferben
-        qos.reliability = ReliabilityPolicy.RELIABLE # Minden üzenet megérkezik a feliratkozóhoz
-        qos.durability = DurabilityPolicy.TRANSIENT_LOCAL # Amikor egy új subscriber csatlakozik, megkapja a legutoljára publikált térképet
+        # A qos beállításával oldjuk meg, hogy minden node ami használja, majd a map topicot, az mindig megkapja a legfrissebb állapotot
+        qos = QoSProfile(depth=1) # Ezzel biztosítjuk, hogy a bufferben mindig a legutolsó publikált üzenet legyen
+        qos.reliability = ReliabilityPolicy.RELIABLE # Ezzel garantáljuk, hogy mindenki aki feliratkozik erre a topicra az minden üzenetet megkapjon
+        # Amikor egy új node iratkozik fel a topicra, akkor ez a sor biztosítja, hogy megkapja a legutoljára publikált térképet
+        qos.durability = DurabilityPolicy.TRANSIENT_LOCAL 
         
-        # OccupancyGrid típusú üzenetet publikál a 'map' topicon
+        # A 'map' topicon publikálunk egy OccupancyGrid típusú üzenetet
         self.map_publisher = self.create_publisher(OccupancyGrid, 'map', qos)
         
-        # OccupancyGrid üzenet metaadatait állítjuk be
-        self.map_msg = OccupancyGrid() # Létrehozunk egy OccupancyGrid objektumot, ami az üzenet lesz
+        # Létrehozzuk az OccupancyGrid típusú üzenetetv és beállítjuk az értékeit
+        self.map_msg = OccupancyGrid() # Létrehozunk egy OccupancyGrid objektumot
         self.map_msg.header = Header() # Létrehozunk egy header-t
-        self.map_msg.header.frame_id = 'map' # Frame_id az map lesz. Ez azt jelenti, hogy az egész térkép a map koordinátarendszerben lesz értelmezve
+        self.map_msg.header.frame_id = 'map' # Frame_id az map lesz. Itt mondjuk meg, hogy a térkép a map nevű koordinátarendszerben lesz
         
-        # Ez fogja tartalmazni a térkép statikus leírását: méret, felbontás, eredet
+        # Ez fogja tartalmazni a térkép adatait: méret, felbontás, forgatás, térkép elhelyzekedése a világ síkjában
         self.map_msg.info = MapMetaData()
-        self.map_msg.info.height = self.grid.shape[0] # Hány sorból áll a rács (Y irány) 
-        self.map_msg.info.width = self.grid.shape[1] # Hány oszlopból áll a rács (Y irány)
-        self.map_msg.info.resolution = 0.1 # Egy cella 0.1 méter
+        self.map_msg.info.height = self.grid.shape[0] # Beállítjuk, hogy mennyi sorból fog állni a rács, az y-t adjuk meg 
+        self.map_msg.info.width = self.grid.shape[1] # Beállítjuk, hogy mennyi oszlopból fog állni a rács, az x-t adjuk meg
+        self.map_msg.info.resolution = 0.1 # Beállítjuk egy cella méretét méterben
         
-        # Beállítjuk a térkép bal alsó sarkának világkoordinátáját; a gridet tükrözzük az OccuapancyGridre
-        # teljes térkép fizikai szélessége /2 -> koordinátarendszer középpontját állítjuk a térkép közepére
+        # Beállítjuk a térkép bal alsó sarkának világkoordinátáját, a gridet tükrözzük
+        # A térkép teljes fizikai szélességét  osztjuk 2-vel, mert a térkép közepét a koordinátarendszer origójához igazítjuk.
         self.map_msg.info.origin.position.x = - self.map_msg.info.width * self.map_msg.info.resolution / 2.0
-        # teljes térkép fizikai magassága /2 -> koordinátarendszer középpontját állítjuk a térkép közepére 
-        self.map_msg.info.origin.position.y = - self.map_msg.info.height * self.map_msg.info.resolution / 2.0
-        # A térkép a világ alapsíkjára kerül; térkép magasságát adjuk meg a világban 
-        self.map_msg.info.origin.position.z = 0.0
-        self.map_msg.info.origin.orientation.w = 1.0 # nincs elforgatás
         
-        # Térkép celláit átalakítjuk OccupancyGrid formátummá, amit a ROS vár (0 - szabad, 1 - foglalt). Először 1D listává alakítjuk, majd szorozzuk 100-zal
-        # Lapítá után a 0 mező a szabad lesz, 100 az akadály
+        # A térkép teljes fizikai magasságát osztjuk 2-vel, mert a térkép közepét a koordinátarendszer origójához igazítjuk.
+        self.map_msg.info.origin.position.y = - self.map_msg.info.height * self.map_msg.info.resolution / 2.0
+        
+        # A térképet a világ függőlegsen helyezzük el vagyis azt mondjuk meg, hogy a térkép a világ síkjához képest hol helyzkedjen el
+        self.map_msg.info.origin.position.z = 0.0
+        self.map_msg.info.origin.orientation.w = 1.0 # Nem forgatjuk el a térképet
+        
+        # Térkép celláit átalakítjuk OccupancyGrid formátumuvá, ahol a 0-ás a szabad, 1-es a foglalt mező lesz. Aztán listává alakítjuk, majd szorozzuk 100-zal
+        # A szorzást követően a 0-ás mező továbbra is szabad lesz, 100-as mező pedig az akadályt fogja jelölni
         self.map_msg.data = (self.grid.flatten() * 100).tolist()
         
-        # Másodpercenként, publikálja az OccupancyGridet amit a SLAM, a path planning, az RViz fel tud használni
+        # Másodpercenként publikáljuk az OccupancyGridet azért, hogy, mind a path_planner és mind az RViz tudja használni
         self.timer = self.create_timer(1.0, self.publish_map)
         
         self.get_logger().info('Map publication node inicializálva....')
         
     def publish_map(self):
-        # időbélyeget állítjuk be a szinkronizáció miatt és ahhoz, hogy a RViz és Gazebo helyesen működjön
-        #pl: több szenzor adatait kombináljuk, az időbélyeg alapján lehet összekapcsolni; Ha nincs időbélyeg, az üzenet rossz időben jelenhet meg.
+        # Beállítjuk az időbélyeget a szinkronizáció miatt, hogy az Rviz és a Gazebo jól működjönk
         self.map_msg.header.stamp = self.get_clock().now().to_msg()
         self.map_publisher.publish(self.map_msg)
         self.get_logger().info('A map üzenet publikálva...')
