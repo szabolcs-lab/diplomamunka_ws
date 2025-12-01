@@ -1,22 +1,4 @@
-timestamp,algorithm,map_name,planning_time (sec),path_length (meter),memory (MB),cpu_percent (%),computation_load (db)
-2025-11-16 16:02:35,A_star,occupancy_grid_1.csv,0.3076110459987831,44.69840828216249,58.72265625,28.9,25922
-2025-11-21 18:58:52,A_star,occupancy_grid_1.csv,0.36462109199999304,44.69840828216249,57.4609375,33.5,25922
-2025-11-21 19:00:46,A_star,occupancy_grid_2.csv,0.46224902399995926,37.87987614718472,58.6640625,36.0,32591
-2025-11-21 19:02:02,A_star,occupancy_grid_3.csv,0.4714879119999864,59.135853194461575,59.125,38.3,32378
-2025-11-21 19:08:12,A_star,occupancy_grid_1.csv,0.31186778599999343,44.69840828216249,58.3671875,28.8,25922
-2025-11-21 20:21:27,A_star,occupancy_grid_1.csv,0.36420096900019416,44.69840828216249,57.90625,34.1,25922
-2025-11-24 07:58:04,A_star,occupancy_grid_1.csv,0.1875352310000835,44.69840828216249,85.28125,21.4,25922
-2025-11-24 07:59:55,A_star,occupancy_grid_1.csv,0.16702545200018903,44.69840828216249,90.41796875,20.1,25922
-2025-11-24 13:57:32,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.1891172479990928,44.69840828216249,81.4375,20.6,25922
-2025-11-24 14:21:39,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.1970304530004796,44.69840828216249,81.1640625,22.1,25922
-2025-11-26 11:51:10,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.20167117600067286,44.69840828216249,81.0546875,22.7,25922
-2025-11-26 11:54:42,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.20484818200020527,44.69840828216249,82.55078125,22.3,25922
-2025-11-26 12:48:06,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.2805932200008101,44.69840828216249,73.71484375,26.6,25922
-2025-11-26 12:49:50,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.28152218499963055,44.69840828216249,83.44921875,27.0,25922
-2025-11-26 12:50:32,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.25375979999989795,44.69840828216249,75.46484375,25.8,25922
-2025-11-26 14:07:53,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.28231885800050804,44.69840828216249,77.38671875,28.9,25922
-2025-11-26 14:10:25,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.2859836339994217,44.69840828216249,67.515625,29.0,25922
-2025-11-26 14:23:03,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.28441397700225934,44.69840828216249,61.75,28.4,25922
-2025-11-26 14:39:09,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.28626126800008933,44.69840828216249,67.5703125,26.5,25922
-2025-11-26 14:42:44,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv,0.2063464130005741,44.69840828216249,65.578125,23.4,25922
-2025-11-27 08:24:58,A_star,occupancy_grid_1.csv,0.26284015400005956,44.69840828216249,90.8046875,25.0,25922
+inditas_idopont,algoritmus,palya_nev,scenario,fazis,tervezesi_ido (sec),tervezett_ut_hossza (meter),memoria (MB),cpu_kihasznaltsag (%),szamitasok_szama (db)
+2025-12-01 13:11:43,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_static,static,statikus,0.2662854199988942,44.69104077616483,93.0390625,26.1,25920
+2025-12-01 13:12:55,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_dynamic,dynamic,statikus,0.26166790899878833,44.69104077616483,69.38671875,25.0,25920
+2025-12-01 13:13:13,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_dynamic,dynamic,dinamikus-stop,0.0,44.69104077616483,69.81640625,1.6,0

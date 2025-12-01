@@ -5,12 +5,11 @@ import heapq
 class DStarLite():
     def __init__(self, grid, start, goal):
         
-        self.grid = grid
-        
+        self.grid = grid    
         self.start = start
         self.start_last = self.start
         self.goal = goal
-        
+       
         self.g = defaultdict(lambda: math.inf)
         self.rhs = defaultdict(lambda: math.inf)
         
@@ -25,20 +24,24 @@ class DStarLite():
         
         self.processed_nodes = 0
         
-    def heuristic(self, a, b):
-        return math.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
+    def heuristic(self, node1, node2):
+        # euklidészi távolságot számítunk, az átlós mozgás miatt
+        return math.sqrt((node1[0] - node2[0])**2 + (node1[1] - node2[1])**2)
     
-    def cost(self, a, b):
-        dx = abs(a[0] - b[0])
-        dy = abs(a[1] - b[1])
+    
+    def cost(self, node1, node2):
+        # kiszámoljuk az irányt két pont között
+        direction_y = abs(node1[0] - node2[0])
+        diretcion_x = abs(node1[1] - node2[1])
         
-        if dx + dy == 2:
+        # ha az irány 2, tehát átlósan léünk akkor a költésg 1.41
+        if direction_y + diretcion_x == 2:
             return math.sqrt(2)
-        elif dx + dy == 1:
-            return 1
-        else:
-            return math.inf
         
+        # ha az irány 1, nem átlósan lépünk, akkor a költség 1
+        elif direction_y + diretcion_x == 1:
+            return 1
+      
     def calc_key(self, node):
         k_1 = min(self.g[node], self.rhs[node]) + self.heuristic(node, self.start) + self.k_m
         k_2 = min(self.g[node], self.rhs[node])
@@ -55,52 +58,39 @@ class DStarLite():
     def remove(self, node):
         if node in self.open_dict:
             del self.open_dict[node]
-    '''       
-    def get_neighbors(self, grid, u):
+        
+            
+    def get_neighbors(self, node):
         neighbors = []
         
-        direction = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
-        
-        for dx, dy in direction:
-            neighbor = (u[0] + dx, u[1] + dy)
-            if 0 <= neighbor[0] < len(grid) and 0 <= neighbor[1] < len(grid[0]):
-                if grid[neighbor[0]][neighbor[1]] == 0:
-                    neighbors.append(neighbor)
+        # lehetséges irányok amerre mozoghatunk az aktuális csomópontból
+        directions = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
+         
+        # végigmegy a ciklus az irányokon és az aktuális ponthoz, ahol állunk hozzádadja így meg kapjuk az új pont koordinátáis, ha odalépnénk    
+        for direction_y, direction_x in directions:
+            neighbor_y, neighbor_x = node[0] + direction_y, node[1] + direction_x
+            
+            # ellenőrizzük, hogy a griden belül vagyun-e és szabad-e a cella
+            if 0 <= neighbor_y < len(self.grid) and 0 <= neighbor_x < len(self.grid[0]) and self.grid[neighbor_y][neighbor_x] == 0:
+                         
+                # átlós lépés miatt ellenőrzzük, hogy a szomszédos cellál, amik mellette vannak az adott irányból nem-e akadályok, ha az kihagyjuk  
+                if abs(direction_y) > 0 and abs(direction_x) > 0:              
+                    if self.grid[node[0]][neighbor_x] != 0 or self.grid[neighbor_y][node[1]] != 0:
+                        continue
                     
+                neighbors.append((neighbor_y, neighbor_x))
+                
         return neighbors
-    '''
-    
-    def get_neighbors(self, grid, u):      
-        neighbors = []
-        H, W = grid.shape
-        dirs = [(-1, 0), (-1, 1), (0, 1), (1, 1),
-                (1, 0), (1, -1), (0, -1), (-1, -1)]
-
-        uy, ux = u
-        for dy, dx in dirs:
-            ny, nx = uy + dy, ux + dx
-            # rácson belül?
-            if not (0 <= ny < H and 0 <= nx < W):
-                continue
-            # célcella szabad?
-            if grid[ny, nx] != 0:
-                continue
-            # NO-CORNER-CUT: diagonálnál mindkét „oldalcellának” is szabadnak kell lennie
-            if dy != 0 and dx != 0:
-                if grid[uy, nx] != 0 or grid[ny, ux] != 0:
-                    continue
-            neighbors.append((ny, nx))
-        return neighbors
-
-    def update_vertex(self, u):
-        if u != self.goal:
-            self.rhs[u] = min([self.g[s] + self.cost(s, u) for s in self.get_neighbors(self.grid, u)] or [math.inf])
         
-        if u in self.open_dict:
-            self.remove(u)
+    def update_vertex(self, node):
+        if node != self.goal:
+            self.rhs[node] = min([self.g[s] + self.cost(s, node) for s in self.get_neighbors(node)] or [math.inf])
         
-        if self.g[u] != self.rhs[u]:
-            self.insert(u, self.calc_key(u))
+        if node in self.open_dict:
+            self.remove(node)
+        
+        if self.g[node] != self.rhs[node]:
+            self.insert(node, self.calc_key(node))
             
     def get_path(self):
         path = []
@@ -112,7 +102,7 @@ class DStarLite():
         path.append(current)
         
         while current != self.goal:
-            neighbors = self.get_neighbors(self.grid, current)
+            neighbors = self.get_neighbors(current)
             neighbors = [n for n in neighbors if self.g[n] != math.inf]
             
             if not neighbors:
@@ -126,35 +116,36 @@ class DStarLite():
     
     def compute_shortest_path(self):
         while self.U and (self.U[0][0] < self.calc_key(self.start) or self.rhs[self.start] != self.g[self.start]):
-            (k_old, u) = heapq.heappop(self.U)
+            (k_old, node) = heapq.heappop(self.U)
             
             self.processed_nodes += 1
 
             # stale bejegyzés kihagyása
-            if u not in self.open_dict or k_old != self.open_dict[u]:
+            if node not in self.open_dict or k_old != self.open_dict[node]:
                 continue
-            del self.open_dict[u]
+            del self.open_dict[node]
 
-            k_new = self.calc_key(u)
+            k_new = self.calc_key(node)
             if k_old < k_new:
-                self.insert(u, k_new)
+                self.insert(node, k_new)
 
-            elif self.g[u] > self.rhs[u]:
+            elif self.g[node] > self.rhs[node]:
                 # g javult -> értesítjük a szomszédokat
-                self.g[u] = self.rhs[u]
-                for n in self.get_neighbors(self.grid, u):
+                self.g[node] = self.rhs[node]
+                for n in self.get_neighbors(node):
                     self.update_vertex(n)
 
             else:
                 # g romlott -> lehet, hogy több szómszéd rhs-e is ezen a csúcson át volt optimális
-                g_old = self.g[u]
-                self.g[u] = math.inf
-                for n in self.get_neighbors(self.grid, u) + [u]:
-                    if self.rhs[n] == self.cost(n, u) + g_old:
+                g_old = self.g[node]
+                self.g[node] = math.inf
+                for n in self.get_neighbors(node):
+                    if self.rhs[n] == self.cost(n, node) + g_old:
                         self.rhs[n] = min(
-                            [self.g[s] + self.cost(s, n) for s in self.get_neighbors(self.grid, n)] or [math.inf]
+                            [self.g[s] + self.cost(s, n) for s in self.get_neighbors(n)] or [math.inf]
                         )
                     self.update_vertex(n)
+                self.update_vertex(node)
                     
     def update_obstacle(self, node, is_obstacle):
         ry, cx = node
@@ -167,5 +158,5 @@ class DStarLite():
 
         # érintett csúcsok frissítése
         self.update_vertex(node)
-        for n in self.get_neighbors(self.grid, node):
+        for n in self.get_neighbors(node):
             self.update_vertex(n)

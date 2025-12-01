@@ -25,17 +25,26 @@ class DStarLitePathPlanner(Node):
         
         self.declare_parameter('margin', 0.5)
         self.declare_parameter('resample_step', 0.1)
-        self.declare_parameter('map_file', 'unknown.csv') 
+        self.declare_parameter('map_file', 'unknown.csv')
+        self.declare_parameter('scenario', 'static') 
+        
+        self.map_file = self.get_parameter('map_file').get_parameter_value().string_value
+        self.scenario = self.get_parameter('scenario').get_parameter_value().string_value
+        self.step = self.get_parameter('resample_step').get_parameter_value().double_value
         
         self.start = (199, 0)
         self.goal  = (0, 199)
         self.grid = None
-        self.metrics_logged = False
-        self.map_file = self.get_parameter('map_file').get_parameter_value().string_value
+        
         self.map_info = None # OccupancyGrid.info elmentve
         self.planner = None # DStarLite példány
         
         self.last_path_msg = None #ez az alapútvonal miatt kell, hogy eltároljuk
+        
+        
+        self.static_metrics_logged = False
+        self.dynamic_replan_logged = False
+        
         
         self.process_obj = psutil.Process(os.getpid())
         self.process_obj.cpu_percent(interval=None)
@@ -48,7 +57,7 @@ class DStarLitePathPlanner(Node):
         self.path_pub = self.create_publisher(Path, 'planned_path_dilated', qos)
         
         self.path_debug_pub = self.create_publisher(Path, 'dstar_debug_path', qos) #ez az alapútvonal miatt kell, hogy lássuk
-        self.path_debug_timer = self.create_timer(0.5, self.republish_last_path_debug) #ez is az alapútvonal miatt kell, hogy lássuk
+        #self.path_debug_timer = self.create_timer(0.5, self.republish_last_path_debug) #ez is az alapútvonal miatt kell, hogy lássuk
              
         self.package_dir = os.path.expanduser('~/diplomamunka_ws/src/d_star_lite_pkg')
         self.metrics_log_dir = os.path.join(self.package_dir,'metrics_log')
@@ -58,7 +67,7 @@ class DStarLitePathPlanner(Node):
         if not os.path.exists(self.metrics_log_file):
             with open(self.metrics_log_file, 'w', newline= '') as f:
                 writer = csv.writer(f)
-                writer.writerow(['timestamp', 'algorithm', 'map_name', 'planning_time (sec)', 'path_length (meter)', 'memory (MB)', 'cpu_percent (%)', 'computation_load (db)'])
+                writer.writerow(['inditas_idopont', 'algoritmus', 'palya_nev', 'scenario', 'fazis', 'tervezesi_ido (sec)', 'tervezett_ut_hossza (meter)', 'memoria (MB)', 'cpu_kihasznaltsag (%)', 'szamitasok_szama (db)'])
         
         self.get_logger().info('D* Lite Path Planner node has been initialized....')
         
@@ -101,11 +110,11 @@ class DStarLitePathPlanner(Node):
                     
                 used_ram, cpu_percent = self.measure_resources()
                 
-                if not self.metrics_logged:
+                if not self.static_metrics_logged:
                     with open(self.metrics_log_file, 'a', newline='') as f:
                         writer = csv.writer(f)
-                        writer.writerow([timestamp, 'D_Star_Lite', self.map_file, planning_time, path_length, used_ram, cpu_percent, self.planner.processed_nodes])
-                    self.metrics_logged = True
+                        writer.writerow([timestamp, 'D_Star_Lite', self.map_file, self.scenario, 'statikus', planning_time, path_length, used_ram, cpu_percent, self.planner.processed_nodes])
+                    self.static_metrics_logged = True
                     
                 return
             
@@ -115,6 +124,8 @@ class DStarLitePathPlanner(Node):
             
             diff_mask = (self.grid != new_grid)
             ys, xs = np.where(diff_mask)
+            
+            self.get_logger().info(f"Difffffffffffffffffffffffffffffffffffff cells count: {len(ys)}")
 
             if len(ys) == 0:
                 self.get_logger().info("NOOOOOOOOOOOOOOOO changes in grid, skipping incremental replan.")
@@ -142,14 +153,21 @@ class DStarLitePathPlanner(Node):
                 self.get_logger().warn("Dynamic obstacle után nem talált új útvonalat.")
                 return
 
-            self.path_publish(path_cells, msg.info)
+            path_length = self.path_publish(path_cells, msg.info)
+            
+            if self.scenario == 'dynamic' and not self.dynamic_replan_logged:
+                used_ram, cpu_percent = self.measure_resources()
+                with open(self.metrics_log_file, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow([timestamp, 'D_Star_Lite', self.map_file, self.scenario, 'dinamikus', planning_time, path_length, used_ram, cpu_percent, self.planner.processed_nodes])
+                self.dynamic_replan_logged = True
                 
         except Exception as e:
             self.get_logger().error(f"map_callback failed: {e}\n{traceback.format_exc()}")
             
     
     def path_publish(self, path_cells: list, map_info: OccupancyGrid):
-        step = self.get_parameter('resample_step').get_parameter_value().double_value
+        
         
         res = float(map_info.resolution)
         ox  = float(map_info.origin.position.x)
@@ -162,7 +180,7 @@ class DStarLitePathPlanner(Node):
             wy = oy + (ry + 0.5) * res
             pts.append((wx, wy))
 
-        pts = self.resample_path(pts, step=step)
+        pts = self.resample_path(pts, step=self.step)
         
         path_length = 0.0
         for i in range(len(pts) -1):
@@ -191,11 +209,7 @@ class DStarLitePathPlanner(Node):
         # egyszer azonnal elküldjük a debug topicon is
         self.path_debug_pub.publish(self.last_path_msg)
         
-        self.get_logger().info(
-            f'Path has been published. N={len(path_msg.poses)}, '
-            f'first=({pts[0][0]:.2f},{pts[0][1]:.2f}), '
-            f'last=({pts[-1][0]:.2f},{pts[-1][1]:.2f})'
-        )
+        self.get_logger().info(f'Path has been published.')
         
         return path_length
        

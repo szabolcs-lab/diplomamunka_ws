@@ -16,7 +16,7 @@ class DynamicObstacleSpawner(Node):
     def __init__(self):
         super().__init__('dynamic_obstacle_spawner')
 
-        self.min_delay = self.declare_parameter('min_delay', 12.0).value
+        self.min_delay = self.declare_parameter('min_delay', 17.0).value
         self.max_delay = self.declare_parameter('max_delay', 24.0).value
         self.world_name = self.declare_parameter('world_name', 'custom_world').value
         self.obstacle_name = self.declare_parameter('obstacle_name', 'dynamic_obstacle').value

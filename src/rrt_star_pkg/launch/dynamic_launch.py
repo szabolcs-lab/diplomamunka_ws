@@ -29,7 +29,7 @@ def generate_launch_description():
         executable='map_publication',
         name='map_publication',
         output='screen',
-        parameters=[map_publication_parameter_file, {'map_file': full_map_path}, {'scenario': 'dynamic'}]
+        parameters=[map_publication_parameter_file, {'map_file': full_map_path}]
     )
     
     # 2) Dinamikus akadály miatt
@@ -43,7 +43,8 @@ def generate_launch_description():
         executable='rrt_star_path_planner',
         name='rrt_star_path_planner',
         output='screen',
-        parameters=[path_planner_parameter_file, {'map_file': full_map_path}]
+        parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'dynamic'}],
+        remappings=[('map', 'map_dynamic')]        
     )
     
     # 3) RViz

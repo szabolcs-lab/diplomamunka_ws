@@ -15,9 +15,7 @@ def node_distance(n1, n2):
 
 
 class RRTStar:
-    def __init__(self, grid, start, goal,
-                 max_iter=2000, step_len=3,
-                 goal_sample_rate=0.05, rewire_radius=6):
+    def __init__(self, grid, start, goal, max_iter=2000, step_len=3, goal_sample_rate=0.05, rewire_radius=6):
         self.grid = grid
         self.height, self.width = grid.shape
         self.start = Node(start[0], start[1])  

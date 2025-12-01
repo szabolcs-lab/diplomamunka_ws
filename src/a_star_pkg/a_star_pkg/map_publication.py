@@ -15,7 +15,7 @@ class MapPublication(Node):
     def __init__(self):
         super().__init__('map_publication')
         
-        self.get_logger().info('Map publication node elindult....')
+        self.get_logger().info('Map publication node indul....')
         
         # Beolvassuk a paramétert, amit launch fájlban teszünk össze, az indítás során megadott paraméter és a PathJoinSubstitution összefüzésével
         self.declare_parameter('map_file', '')

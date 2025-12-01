@@ -21,21 +21,30 @@ class AStarPathPlanner(Node):
     def __init__(self):
         super().__init__('a_star_path_planner')
         
-        self.get_logger().info('A* Path Planner node initialization....')
+        self.get_logger().info('A* Path Planner node indul....')
         
         self.declare_parameter('margin', 0.5)
         self.declare_parameter('resample_step', 0.1)
         self.declare_parameter('map_file', 'unknown.csv')
         self.declare_parameter('scenario', 'static')
+        
+        self.map_file = self.get_parameter('map_file').get_parameter_value().string_value  
+        self.scenario = self.get_parameter('scenario').get_parameter_value().string_value
+        self.step = self.get_parameter('resample_step').get_parameter_value().double_value
          
         self.start = (199, 0)
-        self.goal  = (0, 199) 
-        self.map_file = self.get_parameter('map_file').get_parameter_value().string_value   
+        self.goal  = (0, 199)   
         self.grid = None
-        self.metrics_logged = False
+        
         self.path_computed = False
-        self.last_path = None
-        self.scenario = self.get_parameter('scenario').get_parameter_value().string_value
+        self.last_path = None   
+           
+        self.initial_path_length = 0.0
+        self.initial_grid = None
+        
+        self.initial_metrics_logged  = False     
+        self.dynamic_replan_logged = False
+        self.dynamic_stop_logged = False 
         
         self.process_obj = psutil.Process(os.getpid())
         self.process_obj.cpu_percent(interval=None)
@@ -56,70 +65,104 @@ class AStarPathPlanner(Node):
         if not os.path.exists(self.metrics_log_file):
             with open(self.metrics_log_file, 'w', newline= '') as f:
                 writer = csv.writer(f)
-                writer.writerow(['timestamp', 'algorithm', 'map_name', 'planning_time (sec)', 'path_length (meter)', 'memory (MB)', 'cpu_percent (%)', 'computation_load (db)'])
+                writer.writerow(['inditas_idopont', 'algoritmus', 'palya_nev', 'scenario', 'fazis', 'tervezesi_ido (sec)', 'tervezett_ut_hossza (meter)', 'memoria (MB)', 'cpu_kihasznaltsag (%)', 'szamitasok_szama (db)'])
                 
-        self.get_logger().info('A* Path Planner node has been initialized....')
+        self.get_logger().info('A* Path Planner node inicializálva....')
         
     
     def map_callback(self, msg: OccupancyGrid):
              
         try:
-                    
-            self.get_logger().info(f"Map arrived: {msg.info.width}x{msg.info.height}, res={msg.info.resolution:.3f}")
-                   
+            self.get_logger().info(f"Map: {msg.info.width}x{msg.info.height}, resolution={msg.info.resolution:.3f}")
+            
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            if self.path_computed:
-                if self.last_path is not None:
-                    self.get_logger().info("Path already computed, republishing last_path.")
-                    self.path_publish(self.last_path, msg.info)
-                else:
-                    self.get_logger().warn("path_computed=True, de last_path None?!")
-                return
-
             # OccupancyGrid -> bináris rács: 1=akadály, 0=szabad
             grid = np.array(msg.data).reshape((msg.info.height, msg.info.width))
-            self.grid = (grid > 50).astype(np.int8)
+            grid_bin = (grid > 50).astype(np.int8)
 
             margin_m = self.get_parameter('margin').get_parameter_value().double_value
             cells_radius = max(1, int(math.ceil(margin_m / float(msg.info.resolution))))
-            self.grid = self.dilate_obstacles(self.grid, cells_radius)
-       
-            self.get_logger().info("compute start")
-            planner = AStar(self.grid, self.start, self.goal)
+            grid_dilated = self.dilate_obstacles(grid_bin, cells_radius)
             
-            t0 = time.perf_counter()         
-            path_cells = planner.a_star_plan()
-            t1 = time.perf_counter()
-            planning_time = t1 - t0
-            
-            self.get_logger().info("compute done")  
-            self.get_logger().info(f"planned cells: {len(path_cells)}")
-            
-            path_length = 0.0
-            
-            if path_cells:
-                self.last_path = path_cells
-                path_length = self.path_publish(path_cells, msg.info)
-                self.path_computed = True
-            else:
-                self.get_logger().warn("Nem talált útvonalat a dilatált rácson.")
+            # -------------------- 1) ELSŐ FUTÁS: INITIAL ÚTVONAL --------------------
+            if self.initial_grid is None:
+                self.get_logger().info("A* compute start (initial)")
                 
-            used_ram, cpu_percent = self.measure_resources()
+                self.initial_grid = grid_dilated.copy()
+                planner = AStar(self.initial_grid, self.start, self.goal)
+                
+                t0 = time.perf_counter()
+                path_cells = planner.a_star_plan()
+                t1 = time.perf_counter()
+                planning_time = t1 - t0
+                
+                self.get_logger().info("A* compute done (initial)")
+                self.get_logger().info(f"planned cells: {len(path_cells)}")
+                
+                path_length = 0.0
+                if path_cells:
+                    self.last_path = path_cells
+                    path_length = self.path_publish(path_cells, msg.info)
+                    self.initial_path_length = path_length
+                else:
+                    self.get_logger().warn("Nem talált útvonalat a dilatált rácson (initial).")
+                
+                used_ram, cpu_percent = self.measure_resources()
+                
+                if not self.initial_metrics_logged:
+                    map_name_for_log = f"{self.map_file}_{self.scenario}"
+                    with open(self.metrics_log_file, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow([timestamp, 'A_star', map_name_for_log, self.scenario, 'statikus', planning_time, path_length, used_ram, cpu_percent, planner.processed_nodes])
+                    self.initial_metrics_logged = True
+                
+                return
+        
+            # -------------------- 2) STATIKUS SCENARIO --------------------
+            if self.scenario == 'static':
+                if self.last_path is not None:
+                    self.get_logger().info("Static scenario: republishing last_path.")
+                    self.path_publish(self.last_path, msg.info)
+                else:
+                    self.get_logger().warn("Static scenario, de last_path None?!")
+                return
             
-            if not self.metrics_logged:
+            # -------------------- 3) DINAMIKUS SCENARIO --------------------
+            # NEM tervezünk újra A*-ral, csak megnézzük: a mostani map különbözik-e az eredetitől
+            diff_mask = (self.initial_grid != grid_dilated)
+            ys, xs = np.where(diff_mask)
+            diff_count = len(ys)
+            
+            self.get_logger().info(f"[A* dynamic] Diff cells count (vs initial): {diff_count}")
+            
+            # mindenképp az eredeti pathot publikáljuk
+            if self.last_path is not None:
+                self.path_publish(self.last_path, msg.info)
+            
+            # ha nincs változás, nincs mit logolni pluszban
+            if diff_count == 0:
+                return
+            
+            # ha VAN változás a mapben (pl. dinamikus akadály), akkor egyszer logolunk dynamic-stop-ot
+            if not self.dynamic_stop_logged:
+                self.get_logger().info("[A* dynamic] Map changed, but A* does NOT replan -> dynamic-stop.")
+                
+                used_ram, cpu_percent = self.measure_resources()
                 map_name_for_log = f"{self.map_file}_{self.scenario}"
+                
                 with open(self.metrics_log_file, 'a', newline='') as f:
                     writer = csv.writer(f)
-                    writer.writerow([timestamp, 'A_star', map_name_for_log, planning_time, path_length, used_ram, cpu_percent, planner.processed_nodes])
-                self.metrics_logged = True
-                             
+                    writer.writerow([timestamp, 'A_star', map_name_for_log, self.scenario,'dinamikus-stop',0.0, self.initial_path_length, used_ram, cpu_percent, 0])
+                
+                self.dynamic_stop_logged = True
+            
         except Exception as e:
             self.get_logger().error(f"map_callback failed: {e}\n{traceback.format_exc()}")
             
             
     def path_publish(self, path_cells: list, map_info: OccupancyGrid):
-        step = self.get_parameter('resample_step').get_parameter_value().double_value
+        
         
         res = float(map_info.resolution)
         ox  = float(map_info.origin.position.x)
@@ -132,7 +175,7 @@ class AStarPathPlanner(Node):
             wy = oy + (ry + 0.5) * res
             pts.append((wx, wy))
 
-        pts = self.resample_path(pts, step=step)
+        pts = self.resample_path(pts, step=self.step)
         
         path_length = 0.0
         for i in range(len(pts) -1):
@@ -154,11 +197,7 @@ class AStarPathPlanner(Node):
             path_msg.poses.append(pose)
 
         self.path_pub.publish(path_msg)
-        self.get_logger().info(
-            f'Path has been published. N={len(path_msg.poses)}, '
-            f'first=({pts[0][0]:.2f},{pts[0][1]:.2f}), '
-            f'last=({pts[-1][0]:.2f},{pts[-1][1]:.2f})'
-        )
+        self.get_logger().info(f'Path has been published.')
         
         return path_length
     
