@@ -3,7 +3,7 @@ import heapq
 
 class AStar:
     """
-    Klasszikus A* algoritmus, amely az útvonaétervezést végzi
+    Klasszikus A* algoritmus a start és cél között találja meg a legrövidebb útvonalat
     """
     def __init__(self, grid, start, goal):
         self.grid = grid
