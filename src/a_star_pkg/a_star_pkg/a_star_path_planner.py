@@ -213,7 +213,7 @@ class AStarPathPlanner(Node):
         # létrehozunk egy Path objektumot, ami az üzenet lesz
         path_msg = Path()
         
-        # beállítjuk a headrt a lokálos koordinátarendszerrel és az odővel
+        # beállítjuk a headrt a lokálos koordinátarendszerrel és az idővel
         path_msg.header.frame_id = 'map'
         path_msg.header.stamp = self.get_clock().now().to_msg()
 
