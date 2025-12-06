@@ -40,7 +40,7 @@ class DynamicObstacleToMapUpdate(Node):
         # QoS a dynamic_obstacle topicra: ugyanaz, mint a spawnerben
         qos_obstacle = QoSProfile(depth=10)
         qos_obstacle.reliability = ReliabilityPolicy.RELIABLE
-        qos_obstacle.durability = DurabilityPolicy.VOLATILE
+        qos_obstacle.durability = DurabilityPolicy.TRANSIENT_LOCAL # volatile
 
         # Feliratkozás a statikus mapre
         self.create_subscription(OccupancyGrid, self.static_map_topic, self.map_callback, qos_map)
