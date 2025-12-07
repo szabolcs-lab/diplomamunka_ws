@@ -15,118 +15,129 @@ class DynamicObstacleToMapUpdate(Node):
     def __init__(self):
         super().__init__('dynamic_obstacle_to_map_update')
 
-        # Paraméterek
-        # statikus map topic (ahonnan a map_publication küldi)
+        # paraméterek beolvasása launch-ból
+        #  default érték, ha a launchból nemjön paraméter map
         self.static_map_topic = self.declare_parameter('static_map_topic', 'map').value
 
-        # dinamikus map topic (ide publikálunk)
+        # default érték, ha a launchból nemjön paraméter map_dynamic
         self.dynamic_map_topic = self.declare_parameter('dynamic_map_topic', 'map_dynamic').value
 
         # fél hosszak (méterben) X és Y irányban
         self.obstacle_half_extent_x = self.declare_parameter('obstacle_half_extent_x', 0.25).value
         self.obstacle_half_extent_y = self.declare_parameter('obstacle_half_extent_y', 1.25).value
 
-        self.get_logger().info(f'Static map topic: {self.static_map_topic}, dynamic map topic: {self.dynamic_map_topic}')
+        self.get_logger().info(f'Statikus map topicja: {self.static_map_topic}, dinamikus map topicja: {self.dynamic_map_topic}')
 
-        # Állapot
-        self.static_map_msg = None       # utoljára kapott statikus OccupancyGrid
-        self.obstacle_list = []          # (wx, wy) akadályok listája
-
-        # QoS: ugyanaz, mint a map_publication-ben (RELIABLE + TRANSIENT_LOCAL)
-        qos_map = QoSProfile(depth=1)
-        qos_map.reliability = ReliabilityPolicy.RELIABLE
-        qos_map.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        # ide mentjük az utoljára kapott statikus OccupancyGridet
+        self.static_map_msg = None 
         
-        # QoS a dynamic_obstacle topicra: ugyanaz, mint a spawnerben
-        qos_obstacle = QoSProfile(depth=10)
-        qos_obstacle.reliability = ReliabilityPolicy.RELIABLE
-        qos_obstacle.durability = DurabilityPolicy.TRANSIENT_LOCAL # volatile
+        # itt fogjuk tráolni az akadályokat
+        self.obstacle_list = []          
 
-        # Feliratkozás a statikus mapre
+        qos_map = QoSProfile(depth=1) # Buffer mérete 1
+        qos_map.reliability = ReliabilityPolicy.RELIABLE # ezzel garantáljuk, hogy minden üzenet megérkezzen
+        qos_map.durability = DurabilityPolicy.TRANSIENT_LOCAL # azok a node-ok, amelyek későn csatlakoznak azok is meg fogják kapni a legutolsó üzenetet
+        
+        qos_obstacle = QoSProfile(depth=10) # Buffer mérete 10
+        qos_obstacle.reliability = ReliabilityPolicy.RELIABLE # ezzel garantáljuk, hogy minden üzenet megérkezzen
+        qos_obstacle.durability = DurabilityPolicy.TRANSIENT_LOCAL # azok a node-ok, amelyek későn csatlakoznak azok is meg fogják kapni a legutolsó üzenetet
+
+        # feliratkozunk a statikus mapre és a map_callback függvényt meghívjuk
         self.create_subscription(OccupancyGrid, self.static_map_topic, self.map_callback, qos_map)
 
-        # Feliratkozás a dinamikus akadályokra
+        # feliratkozunk a dynamic_obstacle-re és az obstacle_callback függvényt meghívjuk 
         self.create_subscription(PoseStamped, 'dynamic_obstacle', self.obstacle_callback, qos_obstacle)
 
-        # Dinamikus map publikálása
+        # dinamikus map publikálása a map_dynamic-on
         self.map_pub = self.create_publisher(OccupancyGrid, self.dynamic_map_topic, qos_map)
 
     # Callbacks
     def map_callback(self, msg: OccupancyGrid):
+        # itt mentjük el a legfrissebb statikus map-et
         self.static_map_msg = msg
-        self.get_logger().info(f'Static map received: {msg.info.width}x{msg.info.height}, res={msg.info.resolution:.3f}')
+        self.get_logger().info(f'Statikus map: {msg.info.height}x{msg.info.width}, resolution={msg.info.resolution:.3f}')
 
-        # ha már vannak akadályok, generáljunk azonnal dinamikus mapet
+        # ha már van akadály, generáljunk azonnal dinamikus mapet
         self.publish_dynamic_map()
 
     def obstacle_callback(self, msg: PoseStamped):
+        
+        # megnézzük, hogy az akadály a map frameben van-e
         if msg.header.frame_id not in ['', 'map']:
-            self.get_logger().warn(f'dynamic_obstacle frame_id={msg.header.frame_id}, de "map"-ot várok.')
+            self.get_logger().warn(f'Nincs map {msg.header.frame_id}...')
 
-        wx = msg.pose.position.x
-        wy = msg.pose.position.y
+        # Kiszedjükd az akadály pozícióját ami világkoordinátában van
+        world_x = msg.pose.position.x
+        world_y = msg.pose.position.y
 
-        self.obstacle_list.append((wx, wy))
-        self.get_logger().info(f'Received dynamic obstacle at (x={wx:.2f}, y={wy:.2f}). Currently {len(self.obstacle_list)} obstacle(s).')
+        # hozzáadjuk a listához
+        self.obstacle_list.append((world_x, world_y))
+        self.get_logger().info(f'A dinamikus akadály a világban az x={world_x:.2f}, y={world_y:.2f} koordinátán van...')
 
+        # az akadály érkezése után új map-et készítünk
         self.publish_dynamic_map()
 
     # Dinamikus map generálása
     def publish_dynamic_map(self):
+        # megnézzük, hogy van-e statikus térkép
         if self.static_map_msg is None:
-            self.get_logger().warn('Nincs még statikus map, nem tudok dinamikusat publikálni.')
+            self.get_logger().warn('Nincs még statikus map, így nem tudok dinamikus map-et publikálni...')
             return
 
-        # alap: statikus map numpy array-ben
+        # statikus map-et átalakítjuk numpy array-re, a data mező az egy 1D lista
         base = np.array(self.static_map_msg.data, dtype=np.int16)
-        h = self.static_map_msg.info.height
-        w = self.static_map_msg.info.width
-        base = base.reshape((h, w))
+        height = self.static_map_msg.info.height
+        width = self.static_map_msg.info.width
+        base = base.reshape((height, width))
 
-        dyn = base.copy()
+        dynamic_grid_map = base.copy()
 
-        # paraméterek a világ->rács konverzióhoz
-        res = float(self.static_map_msg.info.resolution)
-        ox = float(self.static_map_msg.info.origin.position.x)
-        oy = float(self.static_map_msg.info.origin.position.y)
+        # paraméterek ahhoz, hogy a világot át tudjuk konvertálni gridre
+        resolution = float(self.static_map_msg.info.resolution)
+        origin_x = float(self.static_map_msg.info.origin.position.x)
+        origin_y = float(self.static_map_msg.info.origin.position.y)
 
         # akadályok rárajzolása
-        for (wx, wy) in self.obstacle_list:
-            self.apply_obstacle_to_grid(dyn, wx, wy, ox, oy, res)
+        for (wrold_x, world_y) in self.obstacle_list:
+            self.apply_obstacle_to_grid(dynamic_grid_map, wrold_x, world_y, origin_x, origin_y, resolution)
 
         # új OccupancyGrid összeállítása
         out = OccupancyGrid()
         out.header = self.static_map_msg.header
         out.header.stamp = self.get_clock().now().to_msg()
         out.info = self.static_map_msg.info
-        out.data = dyn.flatten().tolist()
+        out.data = dynamic_grid_map.flatten().tolist()
 
         self.map_pub.publish(out)
-        self.get_logger().info('Published dynamic map with obstacles.')
+        self.get_logger().info('A dinamikus map publikálva az akadállyal...')
 
-    def apply_obstacle_to_grid(self, grid: np.ndarray, wx: float, wy: float, ox: float, oy: float, res: float):
-        h, w = grid.shape
+    # világkoordinátában megadott akadályt átalakítjuk OccupancyGrid-re
+    def apply_obstacle_to_grid(self, dynamic_grid_map: np.ndarray, world_x: float, world_y: float, origin_x: float, origin_y: float, resolution: float):
+        height, width = dynamic_grid_map.shape
         
-        rx_cells = max(1, int(math.ceil(self.obstacle_half_extent_x / res)))
-        ry_cells = max(1, int(math.ceil(self.obstacle_half_extent_y / res)))
+        # az akadály félméretét alakítjuk át méterből cella számra
+        radius_x_cells = max(1, int(math.ceil(self.obstacle_half_extent_x / resolution)))
+        radius_y_cells = max(1, int(math.ceil(self.obstacle_half_extent_y / resolution)))
 
-        # világ → rács indexek
-        cx = int((wx - ox) / res)
-        cy = int((wy - oy) / res)
+        # itt alakítjuk át a  világkoordinátát cella koordinátára
+        grid_x = int((world_x - origin_x) / resolution)
+        grid_y = int((world_y - origin_y) / resolution)
 
-        # tartomány kirakása a gridre
-        x0 = max(0, cx - rx_cells)
-        x1 = min(w - 1, cx + rx_cells)
-        y0 = max(0, cy - ry_cells)
-        y1 = min(h - 1, cy + ry_cells)
+        # téglalap határait állítjuk be
+        # bal és jobb szélek
+        x0 = max(0, grid_x - radius_x_cells)
+        x1 = min(width - 1, grid_x + radius_x_cells)
+        # alsó és felső szélek
+        y0 = max(0, grid_y - radius_y_cells)
+        y1 = min(height - 1, grid_y + radius_y_cells)
 
-        # out of bounds esetet kicsit jelezzük
-        if cx < 0 or cx >= w or cy < 0 or cy >= h:
-            self.get_logger().warn(f'Obstacle (x={wx:.2f}, y={wy:.2f}) a map rácson kívül esik. (cx={cx}, cy={cy}). ')
+        # itt ellenőrizzük, hogy az akadály a griden belül van-e
+        if grid_x < 0 or grid_x >= width or grid_y < 0 or grid_y >= height:
+            self.get_logger().warn(f'Az akadály y={world_y:.2f}, x={world_x:.2f} a griden kívül esik. (grid_y={grid_y}, grid_x={grid_x}). ')
             return
 
-        # 100-as értékkel jelöljük az akadályt (occupied)
-        grid[y0:y1 + 1, x0:x1 + 1] = 100
+        # 100-as értékkel jelöljük az akadályt
+        dynamic_grid_map[y0:y1 + 1, x0:x1 + 1] = 100
 
 
 def main(args=None):
