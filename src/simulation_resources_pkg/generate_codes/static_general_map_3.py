@@ -5,48 +5,50 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_occupancy_grid(walls, grid_size_x, grid_size_y, resolution):
     """
-    walls: list of dict, mindegyik: {'x', 'y', 'size_x', 'size_y', 'yaw'}
+    walls: dictionary lista, mindegyik: {'x', 'y', 'size_x', 'size_y', 'yaw'} paraméterekkel
     grid_size_x, grid_size_y: világ mérete méterben
     resolution: méter / cella
-    visszatér egy 2D numpy int8 mátrixszal (0 szabad, 1 akadály)
+    visszatérés egy 2D numpy int8 mátrixszal (0 szabad, 1 akadály)
     """
+    
+    # a vilg koordinátákat itt alakítjuk át gridre, ahol a sor az y lesz és az x az oszlop lesz 
     cells_x = int(grid_size_x / resolution)
     cells_y = int(grid_size_y / resolution)
-    grid = np.zeros((cells_y, cells_x), dtype=np.int8)
+    grid = np.zeros((cells_y, cells_x), dtype=np.int8) # 2D numpy tömb, ami a rács lesz
 
     def world_to_grid(x, y):
-        gx = int((x + grid_size_x/2) / resolution)
-        gy = int((y + grid_size_y/2) / resolution)
-        return gx, gy
+        grid_x = int((x + grid_size_x/2) / resolution)
+        grid_y = int((y + grid_size_y/2) / resolution)
+        return grid_x, grid_y
 
+    # a falak listáján végigmegyünk
     for wall in walls:
         x = wall['x']
         y = wall['y']
-        sx = wall['size_x']
-        sy = wall['size_y']
+        size_x = wall['size_x']
+        size_y = wall['size_y']
         yaw = wall.get('yaw', 0)
 
-        # Először vegyük az akadály téglalapját a világ koordinátáiban (szög nélkül)
-        # Majd cellák szinten ellenőrizzük, hogy az adott cella a forgatott téglalapon belül van-e
+        # grid cellák koordinátái
+        for grid_y in range(cells_y):
+            for grid_x in range(cells_x):
+                
+                # itt számoljuk ki, hogy a grid_x és grid_y indexekből milyen abszolút koordináta lesz a világban, 
+                # figyelembe véve a rács cellaméretét (resolution) és a rács teljes méretét
+                world_x = grid_x * resolution - grid_size_x/2 + resolution/2
+                world_y = grid_y * resolution - grid_size_y/2 + resolution/2
 
-        # Grid cellák koordinátái
-        for gy in range(cells_y):
-            for gx in range(cells_x):
-                # Világ koordináta az adott cella közepére
-                wx = gx * resolution - grid_size_x/2 + resolution/2
-                wy = gy * resolution - grid_size_y/2 + resolution/2
+                # itt kiszámoljuk, hogy az adott cella mennyire van eltolva az akadály közepétől a világ koordinátáiban
+                direction_x = world_x - x
+                direction_y = world_y - y
 
-                # Transzformáció: cella koordináta eltolása az akadály középpontjához
-                dx = wx - x
-                dy = wy - y
+                # itt forgatjuk el a cella koordinátáit az akadály tengelyeihez képest
+                x_relative_to_obstacle = direction_x * cos(-yaw) - direction_y * sin(-yaw)
+                y_relative_to_obstacle = direction_x * sin(-yaw) + direction_y * cos(-yaw)
 
-                # Forgatás ellentétes irányba (hogy az akadály tengelyeihez igazítsuk)
-                dx_rot = dx * cos(-yaw) - dy * sin(-yaw)
-                dy_rot = dx * sin(-yaw) + dy * cos(-yaw)
-
-                # Ha az adott pont az akadály téglalapján belül van
-                if (-sx/2 <= dx_rot <= sx/2) and (-sy/2 <= dy_rot <= sy/2):
-                    grid[gy, gx] = 1
+                # ha az adott pont az akadály téglalapján belül van
+                if (-size_x/2 <= x_relative_to_obstacle <= size_x/2) and (-size_y/2 <= y_relative_to_obstacle <= size_y/2):
+                    grid[grid_y, grid_x] = 1
 
     return grid
 
@@ -175,16 +177,14 @@ def generate_sdf(walls, grid_size_x, grid_size_y):
 
 
 def main():
-    # Beállítások
-    pkg_share = get_package_share_directory("simulation_resources_pkg")
     
+    # beállítások
     grid_size_x = 20  # méter
     grid_size_y = 20
     resolution = 0.1  # méter / cella
 
-    # Akadályok definiálása - ezt tetszőlegesen bővítheted, átírhatod
+    # akadályok definiálása
     walls = [
-            # --- Fő központi labirintus struktúra ---
         {"name": "wall1", "x": -8, "y": 8, "size_x": 0.5, "size_y": 4, "yaw": 0},
         {"name": "wall2", "x": -8, "y": 1, "size_x": 0.5, "size_y": 4, "yaw": 0},
         {"name": "wall3", "x": -8, "y": -6, "size_x": 0.5, "size_y": 4, "yaw": 0},
@@ -207,24 +207,29 @@ def main():
         
     ]
 
-    # Occupancy grid generálása
+    # OccupancyGrid generálása
     grid = generate_occupancy_grid(walls, grid_size_x, grid_size_y, resolution)
     
+    # jelenlegi fájl abszolút elérési útja, pontosabban az a mappa '..', ahol van
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     
+    # hozzáfűzzük a maps és worlds mappákat, ezek lesznek a fájlok helyei
     dir_csv = os.path.join(base_dir, "maps")
     dir_sdf = os.path.join(base_dir, "worlds")
     
+    # ha a mappák nem léteznek, akkor létrehozzuk
     os.makedirs(dir_csv, exist_ok=True)
     os.makedirs(dir_sdf, exist_ok=True)
     
+    # fájlok neveu
     name_csv = "occupancy_grid_3.csv"
     name_sdf = "custom_world_3.sdf"
     
+    # ahová létrejönnek a fájlok
     path_csv = os.path.join(dir_csv, name_csv)
     path_sdf = os.path.join(dir_sdf, name_sdf)
 
-    # Mentés CSV-be
+    # mentés CSV-be
     np.savetxt(path_csv, grid, fmt="%d", delimiter=",")
 
     # SDF generálása
