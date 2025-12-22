@@ -123,7 +123,7 @@ vagy
 ros2 launch rrt_star_pkg static_launch.py map_file:=occupancy_grid_3.csv
 ```
 
-### Dinamikus pályá futtatása: 
+### Dinamikus pályák futtatása: 
 
 ```bash 
 ros2 launch a_star_pkg dynamic_launch.py map_file:=occupancy_grid_1.csv
