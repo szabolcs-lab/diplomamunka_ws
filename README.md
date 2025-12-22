@@ -9,6 +9,12 @@
 - colcon
 - rosdep
 
+## A repository letöltése:
+
+```bash 
+git clone -b dynamic-obstacle https://github.com/szabolcs-lab/diplomamunka_ws.git
+```
+
 ## A szükséges ROS2 függőségek:
 
 - rclpy
@@ -27,12 +33,6 @@
 ```bash
 cd ~/diplomamunka_ws    
 rosdep install --from-paths src --ignore-src -r -y
-```
-
-## A repository letöltése:
-
-```bash 
-git clone -b dynamic-obstacle https://github.com/szabolcs-lab/diplomamunka_ws.git
 ```
 
 ## A workspace buildelése:
