@@ -76,7 +76,7 @@ source install/setup.bash
 - package lehet: a_star_pkg, d_star_lite_pkg, rrt_star_pkg; 
 - map_file lehet: occupancy_grid_1.csv, occupancy_grid_2.csv, occupancy_grid_3.csv;
 
-- Statikus pályák futtatása: 
+### Statikus pályák futtatása: 
 
 ```bash 
 ros2 launch a_star_pkg static_launch.py map_file:=occupancy_grid_1.csv
@@ -123,7 +123,7 @@ vagy
 ros2 launch rrt_star_pkg static_launch.py map_file:=occupancy_grid_3.csv
 ```
 
-- Dinamikus pálya futtatása: 
+### Dinamikus pályá futtatása: 
 
 ```bash 
 ros2 launch a_star_pkg dynamic_launch.py map_file:=occupancy_grid_1.csv
