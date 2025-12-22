@@ -45,11 +45,23 @@ source install/setup.bash
 
 ## Pályák indítása (Ignition Gazebo):
 
-- A pályák elindítása külön terminálban történik. A custom_world lehet: custom_world_1.sdf, custom_world_2.sdf, custom_world_3.sdf.
+- A pályák elindítása külön terminálban történik.
 
 ```bash    
 cd ~/diplomamunka_ws/src/simulation_resources_pkg/worlds
 ign gazebo -r custom_world_1.sdf
+```
+vagy
+
+```bash    
+cd ~/diplomamunka_ws/src/simulation_resources_pkg/worlds
+ign gazebo -r custom_world_2.sdf
+```
+vagy
+
+```bash    
+cd ~/diplomamunka_ws/src/simulation_resources_pkg/worlds
+ign gazebo -r custom_world_3.sdf
 ```
 
 ## Algoritmusok indítása:
