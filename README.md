@@ -24,7 +24,8 @@
 
 ## A függőségek telepítése:
 
-```bash    
+```bash
+cd ~/diplomamunka_ws    
 rosdep install --from-paths src --ignore-src -r -y
 ```
 
