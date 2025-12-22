@@ -53,20 +53,105 @@ ign gazebo -r custom_world_1.sdf
 
 ## Algoritmusok indítása:
 
-Egy másik terminálban:
+- Egy másik terminálban:
 
 ```bash
 cd ~/diplomamunka_ws
 source install/setup.bash
 ```
 
-Statikus pálya futtatása (package lehet: a_star_pkg, d_star_lite_pkg, rrt_star_pkg; map_file lehet: occupancy_grid_1.csv, occupancy_grid_2.csv, occupancy_grid_3.csv):
+- package lehet: a_star_pkg, d_star_lite_pkg, rrt_star_pkg; 
+- map_file lehet: occupancy_grid_1.csv, occupancy_grid_2.csv, occupancy_grid_3.csv;
+
+- Statikus pályák futtatása: 
+
+```bash 
+ros2 launch a_star_pkg static_launch.py map_file:=occupancy_grid_1.csv
+```
+vagy
+
+```bash 
+ros2 launch a_star_pkg static_launch.py map_file:=occupancy_grid_2.csv
+```
+vagy
+
+```bash 
+ros2 launch a_star_pkg static_launch.py map_file:=occupancy_grid_3.csv
+```
+
+vagy
 
 ```bash 
 ros2 launch d_star_lite_pkg static_launch.py map_file:=occupancy_grid_1.csv
 ```
-Dinamikus pálya futtatása (package lehet: a_star_pkg, d_star_lite_pkg, rrt_star_pkg; map_file lehet: occupancy_grid_1.csv, occupancy_grid_2.csv, occupancy_grid_3.csv):
+vagy
+
+```bash 
+ros2 launch d_star_lite_pkg static_launch.py map_file:=occupancy_grid_2.csv
+```
+vagy
+
+```bash 
+ros2 launch d_star_lite_pkg static_launch.py map_file:=occupancy_grid_3.csv
+```
+vagy
+
+```bash 
+ros2 launch rrt_star_pkg static_launch.py map_file:=occupancy_grid_1.csv
+```
+vagy
+
+```bash 
+ros2 launch rrt_star_pkg static_launch.py map_file:=occupancy_grid_2.csv
+```
+vagy
+
+```bash 
+ros2 launch rrt_star_pkg static_launch.py map_file:=occupancy_grid_3.csv
+```
+
+- Dinamikus pálya futtatása: 
+
+```bash 
+ros2 launch a_star_pkg dynamic_launch.py map_file:=occupancy_grid_1.csv
+```
+vagy
+
+```bash 
+ros2 launch a_star_pkg dynamic_launch.py map_file:=occupancy_grid_2.csv
+```
+vagy
+
+```bash 
+ros2 launch a_star_pkg dynamic_launch.py map_file:=occupancy_grid_3.csv
+```
+vagy
 
 ```bash 
 ros2 launch d_star_lite_pkg dynamic_launch.py map_file:=occupancy_grid_1.csv
+```
+vagy
+
+```bash 
+ros2 launch d_star_lite_pkg dynamic_launch.py map_file:=occupancy_grid_2.csv
+```
+vagy
+
+```bash 
+ros2 launch d_star_lite_pkg dynamic_launch.py map_file:=occupancy_grid_3.csv
+```
+vagy
+
+```bash 
+ros2 launch rrt_star_pkg dynamic_launch.py map_file:=occupancy_grid_1.csv
+```
+vagy
+
+```bash 
+ros2 launch rrt_star_pkg dynamic_launch.py map_file:=occupancy_grid_2.csv
+```
+vagy
+
+```bash 
+ros2 launch rrt_star_pkg dynamic_launch.py map_file:=occupancy_grid_3.csv
 ```
