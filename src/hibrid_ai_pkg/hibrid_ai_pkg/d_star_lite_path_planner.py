@@ -10,9 +10,9 @@ from .d_star_lite import DStarLite
 import math
 import time
 
-class HibridPPOPathPlanner(Node):
+class DStarLitePathPlanner(Node):
     def __init__(self):
-        super().__init__('hibrid_ppo_path_planner....')
+        super().__init__('d_star_lite_path_planner')
         
         self.declare_parameter('margin', 0.5)
         self.declare_parameter('resample_step', 0.1)
@@ -29,11 +29,10 @@ class HibridPPOPathPlanner(Node):
         qos.reliability = ReliabilityPolicy.RELIABLE
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         
-        self.map_subscription = self.create_subscription(
-            OccupancyGrid, 'map', self.map_callback, qos)
+        self.map_subscription = self.create_subscription(OccupancyGrid, 'map', self.map_callback, qos)
         self.path_pub = self.create_publisher(Path, 'planned_path_dilated', qos)
         
-        self.get_logger().info('Hibrid-PPO Path Planner inicializálva...')
+        self.get_logger().info('D* Lite Path Planner inicializálva...')
     
     def map_callback(self, msg: OccupancyGrid):
         grid_raw = np.array(msg.data).reshape((msg.info.height, msg.info.width))
@@ -80,6 +79,7 @@ class HibridPPOPathPlanner(Node):
             points.append((world_x, world_y))
         
         points = self.resample_path(points)
+        
         path_msg = Path()
         path_msg.header.frame_id = 'map'
         path_msg.header.stamp = self.get_clock().now().to_msg()
@@ -144,7 +144,7 @@ class HibridPPOPathPlanner(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = HibridPPOPathPlanner()
+    node = DStarLitePathPlanner()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
