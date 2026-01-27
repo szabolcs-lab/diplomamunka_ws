@@ -10,9 +10,9 @@ from .d_star_lite import DStarLite
 import math
 import time
 
-class DStarLitePathPlanner(Node):
+class HibridPPOPathPlanner(Node):
     def __init__(self):
-        super().__init__('d_star_lite_path_planner....')
+        super().__init__('hibrid_ppo_path_planner....')
         
         self.declare_parameter('margin', 0.5)
         self.declare_parameter('resample_step', 0.1)
@@ -33,7 +33,7 @@ class DStarLitePathPlanner(Node):
             OccupancyGrid, 'map', self.map_callback, qos)
         self.path_pub = self.create_publisher(Path, 'planned_path_dilated', qos)
         
-        self.get_logger().info('D* Lite Path Planner inicializálva...')
+        self.get_logger().info('Hibrid-PPO Path Planner inicializálva...')
     
     def map_callback(self, msg: OccupancyGrid):
         grid_raw = np.array(msg.data).reshape((msg.info.height, msg.info.width))
@@ -52,7 +52,7 @@ class DStarLitePathPlanner(Node):
                 self.path_publish(path_cells, msg.info)
             return
         
-        # Dynamic scenario
+        # Dinamikus változathoz
         diff_cells = (self.grid != grid_dilated)
         ys, xs = np.where(diff_cells)
         
@@ -144,7 +144,7 @@ class DStarLitePathPlanner(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = DStarLitePathPlanner()
+    node = HibridPPOPathPlanner()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
