@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = 'hibrid_ai_pkg'
 
@@ -10,16 +12,21 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'configs'), glob('configs/*.yaml')),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*launch.py'))
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='ajr',
     maintainer_email='ajr@todo.todo',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Hibrid - D* Lite - PPO',
+    license='Szabolcs Stippinger',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'map_publication = hibrid_ai_pkg.map_publication:main',
+            'd_star_lite_path_planner = hibrid_ai_pkg.d_star_lite_path_planner:main',
+            'tf_broadcaster = hibrid_ai_pkg.tf_broadcaster:main'
         ],
     },
 )

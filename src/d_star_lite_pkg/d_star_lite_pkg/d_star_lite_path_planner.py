@@ -62,6 +62,9 @@ class DStarLitePathPlanner(Node):
         
         self.path_debug_pub = self.create_publisher(Path, 'dstar_debug_path', qos) #ez az alapútvonal miatt kell, hogy lássuk
         
+        # ez az időzítő republish_path hívja meg 0.5 másodpercenként
+        self.timer = self.create_timer(0.5, self.republish_path) 
+        
         # metrics_log könytár létrehozása     
         self.package_dir = os.path.expanduser('~/diplomamunka_ws/src/d_star_lite_pkg')
         self.metrics_log_dir = os.path.join(self.package_dir,'metrics_log')
@@ -75,9 +78,15 @@ class DStarLitePathPlanner(Node):
             with open(self.metrics_log_file, 'w', newline= '') as f:
                 writer = csv.writer(f)
                 writer.writerow(['inditas_idopont', 'algoritmus', 'palya_nev', 'scenario', 'fazis', 'tervezesi_ido (sec)', 'tervezett_ut_hossza (meter)', 'memoria (MB)', 'cpu_kihasznaltsag (%)', 'szamitasok_szama (db)'])
+
         
         self.get_logger().info('D* Lite Path Planner node inicializálva....')
-        
+     
+    # mindig a legutólsó útvonalat publikálja újra 
+    def republish_path(self):
+        if self.last_path_msg is not None:
+            self.path_pub.publish(self.last_path_msg)
+            self.path_debug_pub.publish(self.last_path_msg) 
     
     def map_callback(self, msg: OccupancyGrid):
         

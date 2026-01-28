@@ -3,3 +3,4 @@ inditas_idopont,algoritmus,palya_nev,scenario,fazis,tervezesi_ido (sec),tervezet
 2025-12-01 13:12:55,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_dynamic,dynamic,statikus,0.26166790899878833,44.69104077616483,69.38671875,25.0,25920
 2025-12-01 13:13:13,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_dynamic,dynamic,dinamikus-stop,0.0,44.69104077616483,69.81640625,1.6,0
 2025-12-06 11:14:08,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_static,static,statikus,0.40845030500003077,44.69104077616483,58.42578125,34.9,25920
+2026-01-28 10:23:14,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_static,static,statikus,0.23007158099972003,44.69104077616483,95.4921875,23.9,25920
