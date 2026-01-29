@@ -49,7 +49,7 @@ class DStarLitePathPlanner(Node):
 
     def map_callback(self, msg: OccupancyGrid):
         try:
-            self.get_logger().info(f"Grid: {msg.info.width}x{msg.info.height}, resolution={msg.info.resolution:.3f}")
+            self.get_logger().info(f"Grid: {msg.info.height}x{msg.info.width}, resolution={msg.info.resolution:.3f}")
 
             
             grid_raw = np.array(msg.data).reshape((msg.info.height, msg.info.width))
