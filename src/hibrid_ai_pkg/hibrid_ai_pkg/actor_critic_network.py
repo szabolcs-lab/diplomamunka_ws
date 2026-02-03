@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.distributions import Normal
 
 class ActorCriticNetwork(nn.Module):
     def __init__(self, n_inputs=15, n_actions=2, save_file='ppo_allapotok'): #n_inputs még változhat!!!!!!
@@ -37,7 +38,7 @@ class ActorCriticNetwork(nn.Module):
         value = self.critic(state)
         action_mean = self.actor(state)
         sigma = torch.ones_like(action_mean) * 0.1  # fix szórás
-        distribution = torch.distributions.Normal(action_mean, sigma)
+        distribution = Normal(action_mean, sigma)
         return distribution, value
 
     def save_in_file(self):

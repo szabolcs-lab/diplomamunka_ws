@@ -26,7 +26,8 @@ setup(
         'console_scripts': [
             'map_publication = hibrid_ai_pkg.map_publication:main',
             'd_star_lite_path_planner = hibrid_ai_pkg.d_star_lite_path_planner:main',
-            'tf_broadcaster = hibrid_ai_pkg.tf_broadcaster:main'
+            'tf_broadcaster = hibrid_ai_pkg.tf_broadcaster:main',
+            'ppo_controller = hibrid_ai_pkg.ppo_controller:main'
         ],
     },
 )
