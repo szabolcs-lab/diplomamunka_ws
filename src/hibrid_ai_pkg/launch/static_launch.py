@@ -74,6 +74,28 @@ def generate_launch_description():
         output='screen'
     )
     
+    gz_bridge_lidar = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='bridge_lidar',
+        arguments=['/lidar@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan'],
+        remappings=[('/lidar', '/scan')],
+        output='screen'
+    )
+
+    
+    ppo_agent = Node(
+        package='hibrid_ai_pkg',
+        executable='ppo_agent',
+        name='ppo_agent',
+        output='screen',
+        parameters=[{
+            'max_linear_vel': 0.3,
+            'max_angular_vel': 1.0,
+            'episode_length': 1000
+        }]
+    )
+    
     return LaunchDescription([
         map_file_arg,
         map_publication,
@@ -82,4 +104,6 @@ def generate_launch_description():
         gz_cmd_vel_bridge,
         gz_bridge_odom,
         tf_broadcaster,
+        gz_bridge_lidar,
+        ppo_agent
     ])

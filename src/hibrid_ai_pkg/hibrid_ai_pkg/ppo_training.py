@@ -3,8 +3,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from actor_critic_network import ActorCriticNetwork
-from ppo_memory import PPOMemory
+from .actor_critic_network import ActorCriticNetwork
+from .ppo_memory import PPOMemory
 
 
 class PPOTraining:
