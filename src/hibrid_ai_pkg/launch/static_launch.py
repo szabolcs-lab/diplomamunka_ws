@@ -45,7 +45,7 @@ def generate_launch_description():
         output='screen'
     )
     
-    
+
      # 5) odom -> base_link TF (Odometry-ből)
     tf_broadcaster = Node(
         package='hibrid_ai_pkg',
@@ -54,7 +54,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{'odom_topic': '/odom'}]
     )
-    
+
     # 6) ROS /cmd_vel -> Ignition /cmd_vel
     gz_cmd_vel_bridge = Node(
         package='ros_gz_bridge',
@@ -63,6 +63,7 @@ def generate_launch_description():
         output='screen',
         arguments=['/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist']
     )
+    
     
     # 7) Ignition odometry -> ROS /odom
     gz_bridge_odom = Node(
@@ -90,11 +91,24 @@ def generate_launch_description():
         name='ppo_agent',
         output='screen',
         parameters=[{
-            'max_linear_vel': 0.3,
-            'max_angular_vel': 1.0,
-            'episode_length': 1000
+            'map_frame': 'map',
+            'base_frame': 'chassis',
+            'path_topic': '/planned_path_dilated',
+            'scan_topic': '/scan',
+            'cmd_topic': '/cmd_vel',
+            'use_pure_pursuit_fallback': True
         }]
     )
+
+    
+    map_to_odom = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='map_to_odom',
+        output='screen',
+        arguments=['-10', '10', '0', '0', '0', '0', 'map', 'odom']
+    )
+
     
     return LaunchDescription([
         map_file_arg,
@@ -103,6 +117,7 @@ def generate_launch_description():
         rviz,
         gz_cmd_vel_bridge,
         gz_bridge_odom,
+        map_to_odom,
         tf_broadcaster,
         gz_bridge_lidar,
         ppo_agent

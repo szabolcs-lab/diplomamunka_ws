@@ -30,7 +30,7 @@ class TfBroadcaster(Node):
          # itt állítjuk be, hogy a transzformáció az odom koordinátarendszerből, referenciarendszerből indul, és az adott időpontban érvényes.
         t.header.frame_id = 'odom' 
         t.header.stamp = msg.header.stamp
-        t.child_frame_id =  'base_link'
+        t.child_frame_id =  'chassis'
 
         # itt adjuk meg, hogy hol van child frame  a header_framehez viszonyítva, megadjuk a pozíciót és az irányt
         t.transform.translation.x = msg.pose.pose.position.x
