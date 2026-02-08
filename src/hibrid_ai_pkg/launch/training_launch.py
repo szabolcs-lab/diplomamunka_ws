@@ -88,6 +88,18 @@ def generate_launch_description():
         remappings=[('/lidar', '/scan')],
         output='screen'
     )
+    
+    ppo_training_controller = Node(
+        package='hibrid_ai_pkg',
+        executable='ppo_training_controller',
+        name='ppo_training_controller',
+        output='screen',
+        parameters=[{
+            'teacher_topic': '/cmd_vel_nav2',
+            'cmd_vel_out': '/cmd_vel',
+            'control_hz': 10.0,
+        }]
+    )
 
     
     return LaunchDescription([
@@ -99,5 +111,6 @@ def generate_launch_description():
         gz_cmd_vel_bridge,
         gz_bridge_odom,
         tf_broadcaster,
-        gz_bridge_lidar
+        gz_bridge_lidar,
+        ppo_training_controller
     ])

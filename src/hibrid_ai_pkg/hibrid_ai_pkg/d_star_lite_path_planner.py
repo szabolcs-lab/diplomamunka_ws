@@ -16,7 +16,7 @@ class DStarLitePathPlanner(Node):
 
         self.get_logger().info('D* Lite Path Planner node indul....')
 
-        self.declare_parameter('margin', 0.5)
+        self.declare_parameter('margin', 0.8)
         self.declare_parameter('resample_step', 0.1)
 
         self.margin = self.get_parameter('margin').get_parameter_value().double_value
