@@ -21,7 +21,7 @@ class PPOTraining:
         max_grad_norm=0.5,
         save_freq=100,
         save_dir="./ppo_models",
-        min_update_steps=64,   # ✅ új: minimum samples update-hez
+        min_update_steps=64,   # új: minimum samples update-hez
     ):
         self.gamma = gamma
         self.gae_lambda = gae_lambda
@@ -77,12 +77,12 @@ class PPOTraining:
 
         # shape sanity
         if states.ndim != 2 or actions.ndim != 2:
-            print("⚠️ Bad shapes (states/actions), skipping update")
+            print("Bad shapes (states/actions), skipping update")
             self.memory.clear_data()
             return
 
         if len(rewards) < self.min_update_steps:
-            print(f"⚠️ Not enough steps ({len(rewards)}), skipping update")
+            print(f"Not enough steps ({len(rewards)}), skipping update")
             self.memory.clear_data()
             return
 
@@ -105,7 +105,7 @@ class PPOTraining:
 
         # advantage normalizálás (biztonságosan)
         adv_mean = advantages_t.mean()
-        adv_std = advantages_t.std(unbiased=False)  # ✅ nincs df<=0 warning
+        adv_std = advantages_t.std(unbiased=False)  # nincs df<=0 warning
         if torch.isfinite(adv_std) and adv_std > 1e-6:
             advantages_t = (advantages_t - adv_mean) / (adv_std + 1e-8)
         else:
@@ -119,14 +119,14 @@ class PPOTraining:
 
             # network output sanity
             if not torch.isfinite(new_values).all():
-                print("⚠️ Non-finite critic output, skipping update")
+                print("Non-finite critic output, skipping update")
                 self.memory.clear_data()
                 return
 
             new_log_probs = distribution.log_prob(actions).sum(-1)
 
             if not torch.isfinite(new_log_probs).all():
-                print("⚠️ Non-finite log_probs, skipping update")
+                print("Non-finite log_probs, skipping update")
                 self.memory.clear_data()
                 return
 
@@ -147,7 +147,7 @@ class PPOTraining:
             last_loss = loss
 
             if not torch.isfinite(loss):
-                print("⚠️ Non-finite loss, skipping update")
+                print("Non-finite loss, skipping update")
                 self.memory.clear_data()
                 return
 

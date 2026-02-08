@@ -17,6 +17,7 @@ def generate_launch_description():
     
     map_publication_parameter_file = os.path.join(package_dir, 'configs', 'map_publication_params.yaml')
     path_planner_parameter_file = os.path.join(package_dir, 'configs', 'd_star_lite_path_planner_params.yaml')
+    nav2_bringup_launch = os.path.join(package_dir, 'launch', 'nav2_bringup.launch.py')
     
     
     # 1) map -> OccupancyGrid /map
@@ -45,7 +46,11 @@ def generate_launch_description():
         output='screen'
     )
     
-
+    nav2_bringup = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(nav2_bringup_launch)
+    )
+    
+    
      # 5) odom -> base_link TF (Odometry-ből)
     tf_broadcaster = Node(
         package='hibrid_ai_pkg',
@@ -85,40 +90,14 @@ def generate_launch_description():
     )
 
     
-    ppo_agent = Node(
-        package='hibrid_ai_pkg',
-        executable='ppo_agent',
-        name='ppo_agent',
-        output='screen',
-        parameters=[{
-            'map_frame': 'map',
-            'base_frame': 'chassis',
-            'path_topic': '/planned_path_dilated',
-            'scan_topic': '/scan',
-            'cmd_topic': '/cmd_vel',
-            'use_pure_pursuit_fallback': True
-        }]
-    )
-
-    
-    map_to_odom = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='map_to_odom',
-        output='screen',
-        arguments=['-10', '10', '0', '0', '0', '0', 'map', 'odom']
-    )
-
-    
     return LaunchDescription([
         map_file_arg,
         map_publication,
         d_star_lite_path_planner,
         rviz,
+        nav2_bringup,
         gz_cmd_vel_bridge,
         gz_bridge_odom,
-        map_to_odom,
         tf_broadcaster,
-        gz_bridge_lidar,
-        ppo_agent
+        gz_bridge_lidar
     ])
