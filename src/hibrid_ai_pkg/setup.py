@@ -29,7 +29,8 @@ setup(
             'd_star_lite_path_planner = hibrid_ai_pkg.d_star_lite_path_planner:main',
             'nav2_path = hibrid_ai_pkg.nav2_path:main',
             'tf_broadcaster = hibrid_ai_pkg.tf_broadcaster:main',
-            'ppo_training_controller = hibrid_ai_pkg.ppo_training_controller:main'
+            'path_refiner = hibrid_ai_pkg.path_refiner:main',
+            'ppo_trainer = hibrid_ai_pkg.ppo_trainer:main'
         ],
     },
 )

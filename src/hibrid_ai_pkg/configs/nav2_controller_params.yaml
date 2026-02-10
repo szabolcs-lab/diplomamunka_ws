@@ -10,7 +10,7 @@ controller_server:
     robot_base_frame: "base_link"
 
     # Nav2 által publikált cmd_vel topic
-    cmd_vel_topic: "cmd_vel_nav2"
+    cmd_vel_topic: "cmd_vel"
 
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["goal_checker"]

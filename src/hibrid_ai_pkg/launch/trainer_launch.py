@@ -6,21 +6,21 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from ament_index_python.packages import get_package_share_directory
 import os
 
+
 def generate_launch_description():
-    
+
     package_dir = get_package_share_directory('hibrid_ai_pkg')
     simulation_resources_dir = get_package_share_directory('simulation_resources_pkg')
     simulation_resources_maps_dir = os.path.join(simulation_resources_dir, 'maps')
-    
-    map_file_arg = DeclareLaunchArgument('map_file', default_value='occupancy_grid_1.csv',)
+
+    map_file_arg = DeclareLaunchArgument('map_file', default_value='occupancy_grid_1.csv')
     full_map_path = PathJoinSubstitution([simulation_resources_maps_dir, LaunchConfiguration('map_file')])
-    
+
     map_publication_parameter_file = os.path.join(package_dir, 'configs', 'map_publication_params.yaml')
     path_planner_parameter_file = os.path.join(package_dir, 'configs', 'd_star_lite_path_planner_params.yaml')
     nav2_bringup_launch = os.path.join(package_dir, 'launch', 'nav2_bringup.launch.py')
-    
-    
-    # 1) map -> OccupancyGrid /map
+
+    # 1) map -> /map
     map_publication = Node(
         package='hibrid_ai_pkg',
         executable='map_publication',
@@ -28,30 +28,68 @@ def generate_launch_description():
         output='screen',
         parameters=[map_publication_parameter_file, {'map_file': full_map_path}]
     )
-    
-    # 2) D* Lite path planner -> /planned_path_dilated (frame: map)
+
+    # 2) D* Lite -> /planned_path_dilated
     d_star_lite_path_planner = Node(
         package='hibrid_ai_pkg',
         executable='d_star_lite_path_planner',
         name='d_star_lite_path_planner',
         output='screen',
-        parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}], 
+        parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}],
     )
-    
-    # 3) RViz
-    rviz = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        output='screen'
+
+    # 3) Path finomító: /planned_path_dilated -> /planned_path_refined
+    path_refiner = Node(
+        package='hibrid_ai_pkg',
+        executable='path_refiner',
+        name='path_refiner',
+        output='screen',
+        parameters=[{
+            'path_in': '/planned_path_dilated',
+            'path_out': '/planned_path_refined',
+            'params_topic': '/refiner_params'
+        }]
     )
-    
+
+    # 4) PPO trainer
+    ppo_trainer = Node(
+        package='hibrid_ai_pkg',
+        executable='ppo_trainer',
+        name='ppo_trainer',
+        output='screen',
+        parameters=[{
+            'train_mode': True,
+            'control_hz': 10.0,
+            'max_steps': 400,
+
+            'goal_tolerance': 0.20,
+            'collision_distance': 0.18,
+
+            'lidar_bins': 12,
+            'lidar_max_range': 6.0,
+            'max_offset_m': 0.20,
+
+            # óvatos eltolás limit (BSc-s “biztonság”)
+            'warmup_offset_limit': 0.05,
+
+            'odom_topic': '/odom',
+            'scan_topic': '/scan',
+            'path_topic': '/planned_path_refined',
+            'params_topic': '/refiner_params',
+
+            # opcionális: hol hozza létre az új run mappát
+            'runs_dir': './ppo_runs',
+        }]
+    )
+
+
+    # 5) Nav2 bringup (benne van a Nav2PathClient + controller_server stb.)
+    # FONTOS: a Nav2PathClient-ben path_topic legyen 'planned_path_refined'
     nav2_bringup = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(nav2_bringup_launch)
     )
-    
-    
-     # 5) odom -> base_link TF (Odometry-ből)
+
+    # 6) TF broadcaster (odom -> base_link)
     tf_broadcaster = Node(
         package='hibrid_ai_pkg',
         executable='tf_broadcaster',
@@ -60,7 +98,7 @@ def generate_launch_description():
         parameters=[{'odom_topic': '/odom'}]
     )
 
-    # 6) ROS /cmd_vel -> Ignition /cmd_vel
+    # 7) ROS /cmd_vel -> Ignition /cmd_vel
     gz_cmd_vel_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -68,9 +106,8 @@ def generate_launch_description():
         output='screen',
         arguments=['/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist']
     )
-    
-    
-    # 7) Ignition odometry -> ROS /odom
+
+    # 8) Ignition odom -> ROS /odom
     gz_bridge_odom = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -79,7 +116,8 @@ def generate_launch_description():
         remappings=[('/model/vehicle_blue/odometry', '/odom')],
         output='screen'
     )
-    
+
+    # 9) Ignition lidar -> ROS /scan
     gz_bridge_lidar = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -89,28 +127,23 @@ def generate_launch_description():
         output='screen'
     )
     
-    ppo_training_controller = Node(
-        package='hibrid_ai_pkg',
-        executable='ppo_training_controller',
-        name='ppo_training_controller',
-        output='screen',
-        parameters=[{
-            'teacher_topic': '/cmd_vel_nav2',
-            'cmd_vel_out': '/cmd_vel',
-            'control_hz': 10.0,
-        }]
+    rviz = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen'
     )
 
-    
     return LaunchDescription([
         map_file_arg,
         map_publication,
         d_star_lite_path_planner,
+        path_refiner,
+        ppo_trainer,
         rviz,
         nav2_bringup,
         gz_cmd_vel_bridge,
         gz_bridge_odom,
         tf_broadcaster,
         gz_bridge_lidar,
-        ppo_training_controller
     ])

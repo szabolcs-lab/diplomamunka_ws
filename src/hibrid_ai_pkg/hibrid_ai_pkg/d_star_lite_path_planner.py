@@ -40,11 +40,24 @@ class DStarLitePathPlanner(Node):
 
         self.get_logger().info('D* Lite Path Planner node inicializálva....')
 
-
+    """
     def republish_path(self):
         if self.last_path_msg is not None:
             self.path_pub.publish(self.last_path_msg)
             self.path_debug_pub.publish(self.last_path_msg)
+    """
+    def republish_path(self):
+        if self.last_path_msg is None:
+            return
+
+        #stamp frissítés reset után is jó legyen
+        now = self.get_clock().now().to_msg()
+        self.last_path_msg.header.stamp = now
+        for p in self.last_path_msg.poses:
+            p.header.stamp = now
+
+        self.path_pub.publish(self.last_path_msg)
+        self.path_debug_pub.publish(self.last_path_msg)
 
 
     def map_callback(self, msg: OccupancyGrid):

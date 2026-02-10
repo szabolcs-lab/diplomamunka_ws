@@ -17,7 +17,7 @@ def generate_launch_description():
         name='nav2_path_client',
         output='screen',
         parameters=[{
-            'path_topic': 'planned_path_dilated'
+            'path_topic': 'planned_path_refined'
         }]
     )
 
@@ -28,7 +28,6 @@ def generate_launch_description():
         name='controller_server',
         output='screen',
         parameters=[nav2_controller_params],
-        remappings=[('cmd_vel', 'cmd_vel_nav2')],
         arguments=['--ros-args', '--log-level', 'controller_server:=debug']
     )
 
