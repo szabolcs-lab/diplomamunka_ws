@@ -60,17 +60,17 @@ def generate_launch_description():
         parameters=[{
             'train_mode': True,
             'control_hz': 10.0,
-            'max_steps': 400,
+            'max_steps': 1400,
 
-            'goal_tolerance': 0.20,
+            'goal_tolerance': 0.8,
             'collision_distance': 0.18,
 
             'lidar_bins': 12,
             'lidar_max_range': 6.0,
-            'max_offset_m': 0.20,
+            'max_offset_m': 0.10,
 
-            # óvatos eltolás limit (BSc-s “biztonság”)
-            'warmup_offset_limit': 0.05,
+            # óvatos eltolás limit
+            'offset_limit': 0.05,
 
             'odom_topic': '/odom',
             'scan_topic': '/scan',
@@ -79,6 +79,8 @@ def generate_launch_description():
 
             # opcionális: hol hozza létre az új run mappát
             'runs_dir': './ppo_runs',
+            'min_steps_for_goal': 50,
+            'smooth_max': 0.25
         }]
     )
 
