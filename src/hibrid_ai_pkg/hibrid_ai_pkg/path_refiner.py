@@ -10,36 +10,17 @@ from std_msgs.msg import Float32MultiArray
 
 
 class PathRefiner(Node):
-    """
-    Egyszerű útvonal finomító (BSc-barát).
-
-    Input:
-      - /planned_path_dilated  (nav_msgs/Path)  -> D* Lite útvonal
-      - /refiner_params        (Float32MultiArray) -> [offset_m, smooth_strength]
-
-    Output:
-      - /planned_path_refined  (nav_msgs/Path)
-
-    Mit csinál:
-      1) offset: az útvonalra "oldalra tolás" (bal/jobb), méterben
-      2) smooth: simítás erősség (0..1), ebből 0/1/2 iteráció lesz
-
-    Megjegyzés:
-      - Itt nem számolunk orientációt, csak pontokat publikálunk.
-      - A Nav2 controller ezt így is tudja követni.
-    """
-
     def __init__(self):
         super().__init__("path_refiner")
 
         # topicok (paramként, hogy könnyű legyen launchból állítani)
-        self.declare_parameter("path_in", "/planned_path_dilated")
-        self.declare_parameter("path_out", "/planned_path_refined")
-        self.declare_parameter("params_topic", "/refiner_params")
+        #self.declare_parameter("path_in", "/planned_path_dilated")
+        #self.declare_parameter("path_out", "/planned_path_refined")
+        #self.declare_parameter("params_topic", "/refiner_params")
 
-        self.path_in = str(self.get_parameter("path_in").value)
-        self.path_out = str(self.get_parameter("path_out").value)
-        self.params_topic = str(self.get_parameter("params_topic").value)
+        #self.path_in = str(self.get_parameter("path_in").value)
+        #self.path_out = str(self.get_parameter("path_out").value)
+        #self.params_topic = str(self.get_parameter("params_topic").value)
 
         # aktuális paraméterek
         self.offset_m = 0.0
@@ -50,15 +31,14 @@ class PathRefiner(Node):
         qos_path.reliability = ReliabilityPolicy.RELIABLE
         qos_path.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
-        self.sub_path = self.create_subscription(Path, self.path_in, self.cb_path, qos_path)
+        self.sub_path = self.create_subscription(Path, "/planned_path_dilated", self.cb_path, qos_path)
 
         # params-ra elég sima QoS, mert a trainer amúgy is folyamatosan küldi
-        self.sub_params = self.create_subscription(Float32MultiArray, self.params_topic, self.cb_params, 10)
+        self.sub_params = self.create_subscription(Float32MultiArray, "/refiner_params", self.cb_params, 10)
 
-        self.pub_path = self.create_publisher(Path, self.path_out, qos_path)
+        self.pub_path = self.create_publisher(Path, "/planned_path_refined", qos_path)
 
         self.get_logger().info(f"PathRefiner indul: {self.path_in} -> {self.path_out}")
-        self.get_logger().info(f"Param topic: {self.params_topic}  (data=[offset, smooth])")
 
     def cb_params(self, msg: Float32MultiArray):
         # várjuk: [offset, smooth]
@@ -82,7 +62,6 @@ class PathRefiner(Node):
         self.offset_m = off
         self.smooth_strength = sm
 
-        # debug: ha akarod, hagyd bent
         # self.get_logger().info(f"params: offset={self.offset_m:.3f} smooth={self.smooth_strength:.2f}")
 
     def cb_path(self, msg: Path):
@@ -92,7 +71,7 @@ class PathRefiner(Node):
 
         pts = [(p.pose.position.x, p.pose.position.y) for p in msg.poses]
 
-        # 1) offset ráhúzása (szakaszonként normál)
+        # 1) offset ráhúzása
         if abs(self.offset_m) > 1e-6:
             pts = self.apply_offset(pts, self.offset_m)
 
@@ -198,6 +177,45 @@ class PathRefiner(Node):
             out = new_pts
 
         return out
+    
+        """
+        def laplace_smooth(self, pts, iters: int, alpha: float = 0.5):
+    
+            Egyszerű Laplace smoothing:
+            new[i] = p[i] + alpha * ( (p[i-1] + p[i+1]) / 2 - p[i] )
+
+            alpha:
+                0.0  -> nincs simítás
+                0.5  -> normál
+                1.0  -> erős
+            
+            out = pts[:]
+
+            for _ in range(iters):
+                if len(out) < 3:
+                    return out
+
+                new_pts = [out[0]]  # első pont marad
+
+                for i in range(1, len(out) - 1):
+                    x_prev, y_prev = out[i - 1]
+                    x_curr, y_curr = out[i]
+                    x_next, y_next = out[i + 1]
+
+                    avg_x = 0.5 * (x_prev + x_next)
+                    avg_y = 0.5 * (y_prev + y_next)
+
+                    new_x = x_curr + alpha * (avg_x - x_curr)
+                    new_y = y_curr + alpha * (avg_y - y_curr)
+
+                    new_pts.append((new_x, new_y))
+
+                new_pts.append(out[-1])  # utolsó pont marad
+                out = new_pts
+
+            return out
+
+        """
 
 
 def main(args=None):
