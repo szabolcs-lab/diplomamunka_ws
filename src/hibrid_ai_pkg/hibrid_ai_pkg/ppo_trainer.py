@@ -44,8 +44,8 @@ class PPOTrainer(Node):
         # topicok
         self.declare_parameter("odom_topic", "/odom")
         self.declare_parameter("scan_topic", "/scan")
-        self.declare_parameter("path_topic", "/planned_path_refined")
-        self.declare_parameter("params_topic", "/refiner_params")
+        self.declare_parameter("path_topic", "/planned_path_smoother")
+        self.declare_parameter("params_topic", "/smoother_params")
 
         # mentés
         self.declare_parameter("runs_dir", "./ppo_runs")
@@ -82,7 +82,7 @@ class PPOTrainer(Node):
         # fájlok
         self.run_metrics_path = os.path.join(self.run_dir, "metrics.csv")
         self.global_metrics_path = os.path.join(self.runs_dir, "global_metrics.csv")
-        self.best_meta_path = os.path.join(self.runs_dir, "best_meta.csv")
+        self.best_metric_path = os.path.join(self.runs_dir, "best_metric.csv")
         self.best_model_path = os.path.join(self.runs_dir, "best_latest.pth")
         self.latest_global_path = os.path.join(self.runs_dir, "latest_global.pth")
 
@@ -92,7 +92,7 @@ class PPOTrainer(Node):
         self._init_csv_if_needed(self.global_metrics_path, header=[
             "run", "steps", "reason", "offset", "smooth", "dist_goal", "min_range", "progress", "score", "model"
         ])
-        self._init_csv_if_needed(self.best_meta_path, header=[
+        self._init_csv_if_needed(self.best_metric_path, header=[
             "run", "steps", "reason", "progress", "score", "src_model"
         ])
 
@@ -281,30 +281,13 @@ class PPOTrainer(Node):
         score = self._score(reason, self.progress_sum, self.step_count)
 
         # run metrics (1 sor)
-        self._append_csv(self.run_metrics_path, [
-            self.step_count,
-            reason,
-            f"{self.current_offset:.4f}",
-            f"{self.current_smooth:.4f}",
-            f"{dist_goal:.4f}",
-            f"{min_range:.4f}",
-            f"{self.progress_sum:.4f}",
-            f"{score:.4f}",
-        ])
+        self._append_csv(self.run_metrics_path, [self.step_count, reason, f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}", 
+                                                 f"{dist_goal:.4f}", f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}", ])
 
         # global metrics (1 sor)
-        self._append_csv(self.global_metrics_path, [
-            os.path.basename(self.run_dir),
-            self.step_count,
-            reason,
-            f"{self.current_offset:.4f}",
-            f"{self.current_smooth:.4f}",
-            f"{dist_goal:.4f}",
-            f"{min_range:.4f}",
-            f"{self.progress_sum:.4f}",
-            f"{score:.4f}",
-            model_path,
-        ])
+        self._append_csv(self.global_metrics_path, [os.path.basename(self.run_dir), self.step_count, reason, 
+                                                    f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}", f"{dist_goal:.4f}", 
+                                                    f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}", model_path,])
 
         # best frissítés (ha van mentett modell)
         if model_path and os.path.exists(model_path):
@@ -337,11 +320,11 @@ class PPOTrainer(Node):
         return progress - 0.1 * steps
 
     def _read_best_score(self) -> float:
-        # best_meta.csv utolsó sorának score-ja
+        # best_metric.csv utolsó sorának score-ja
         try:
-            if not os.path.exists(self.best_meta_path):
+            if not os.path.exists(self.best_metric_path):
                 return -1e18
-            with open(self.best_meta_path, "r", newline="") as f:
+            with open(self.best_metric_path, "r", newline="") as f:
                 rows = list(csv.reader(f))
             if len(rows) < 2:
                 return -1e18
@@ -360,50 +343,49 @@ class PPOTrainer(Node):
         # best_latest.pth = ez a modell
         try:
             shutil.copyfile(model_path, self.best_model_path)
-            self._append_csv(self.best_meta_path, [
-                os.path.basename(self.run_dir),
-                steps,
-                reason,
-                f"{progress:.4f}",
-                f"{score:.4f}",
-                model_path
-            ])
+            self._append_csv(self.best_metric_path, [os.path.basename(self.run_dir), steps,reason, f"{progress:.4f}", f"{score:.4f}", model_path])
             self.get_logger().info(f"[BEST] Frissült! score={score:.2f} -> {self.best_model_path}")
         except Exception as e:
             self.get_logger().error(f"[BEST] mentés hiba: {e}")
 
     # State
     def build_state(self, odom: Odometry, scan: LaserScan, path: Path):
-        rx = odom.pose.pose.position.x
-        ry = odom.pose.pose.position.y
+        robot_x = odom.pose.pose.position.x
+        robot_y = odom.pose.pose.position.y
 
-        v = float(odom.twist.twist.linear.x)
-        w = float(odom.twist.twist.angular.z)
+        robot_speed = float(odom.twist.twist.linear.x)
+        robot_turn_speed = float(odom.twist.twist.angular.z)
 
-        gx = path.poses[-1].pose.position.x
-        gy = path.poses[-1].pose.position.y
-        dist_goal = math.hypot(gx - rx, gy - ry)
+        goal_x = path.poses[-1].pose.position.x
+        goal_y = path.poses[-1].pose.position.y
+        distance_goal = math.hypot(goal_x - robot_x, goal_y - robot_y)
 
         ranges = np.array(scan.ranges, dtype=np.float32)
         ranges = np.where(np.isfinite(ranges), ranges, self.lidar_max_range)
         ranges = np.clip(ranges, 0.0, self.lidar_max_range)
 
         if len(ranges) == 0:
-            lidar_vec = [1.0] * self.lidar_bins
-            min_range = self.lidar_max_range
+            lidar_vector = [1.0] * self.lidar_bins
+            min_range = float(self.lidar_max_range)
         else:
             min_range = float(np.min(ranges))
-            n = len(ranges)
-            step = max(1, n // self.lidar_bins)
-            lidar_vec = []
-            for b in range(self.lidar_bins):
-                a = b * step
-                c = min(n, (b + 1) * step)
-                m = float(np.min(ranges[a:c])) if a < n else self.lidar_max_range
-                lidar_vec.append(m / self.lidar_max_range)
+            total_lidar_points = len(ranges)
+            points_per_bin = max(1, total_lidar_points // self.lidar_bins)
 
-        state = np.array([dist_goal, v, w, float(min_range)] + lidar_vec, dtype=np.float32)
-        info = {"dist_goal": float(dist_goal), "min_range": float(min_range)}
+            lidar_vector = []
+            for bin_index in range(self.lidar_bins):
+                start_index = bin_index * points_per_bin
+                end_index = min(total_lidar_points, (bin_index + 1) * points_per_bin)
+
+                if start_index < total_lidar_points:
+                    min_distance_in_bin = float(np.min(ranges[start_index:end_index]))
+                else:
+                    min_distance_in_bin = self.lidar_max_range
+
+                lidar_vector.append(min_distance_in_bin / self.lidar_max_range)
+
+        state = np.array([distance_goal, robot_speed, robot_turn_speed, float(min_range)] + lidar_vector, dtype=np.float32)
+        info = {"distance_goal": float(distance_goal), "min_range": float(min_range)}
         return state, info
 
 

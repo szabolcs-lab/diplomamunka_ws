@@ -39,15 +39,15 @@ def generate_launch_description():
     )
 
     # 3) Path finomító: /planned_path_dilated -> /planned_path_refined
-    path_refiner = Node(
+    trajectory_smoother = Node(
         package='hibrid_ai_pkg',
-        executable='path_refiner',
-        name='path_refiner',
+        executable='trajectory_smoother',
+        name='trajectory_smoother',
         output='screen',
         parameters=[{
             'path_in': '/planned_path_dilated',
-            'path_out': '/planned_path_refined',
-            'params_topic': '/refiner_params'
+            'path_out': '/planned_path_smoother',
+            'params_topic': '/smoother_params'
         }]
     )
 
@@ -86,7 +86,6 @@ def generate_launch_description():
 
 
     # 5) Nav2 bringup (benne van a Nav2PathClient + controller_server stb.)
-    # FONTOS: a Nav2PathClient-ben path_topic legyen 'planned_path_refined'
     nav2_bringup = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(nav2_bringup_launch)
     )
@@ -140,7 +139,7 @@ def generate_launch_description():
         map_file_arg,
         map_publication,
         d_star_lite_path_planner,
-        path_refiner,
+        trajectory_smoother,
         ppo_trainer,
         rviz,
         nav2_bringup,

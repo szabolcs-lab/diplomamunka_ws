@@ -79,7 +79,7 @@ class PPOTraining:
 
     def finish_episode(self):
         """
-        Epizód vége. Ha van elég adat -> update + mentés.
+        Epizód vége. Ha van elég adat - update + mentés.
         """
         # epizód számláló nő MINDEN esetben (így a fájlnevek sosem ismétlődnek run-on belül)
         self.episode += 1
@@ -187,7 +187,7 @@ class PPOTraining:
         latest_path = os.path.join(self.save_dir, "latest.pth")
         shutil.copyfile(path, latest_path)
 
-        # extra: run-hoz kötött latest (ha később másolgatnám a mappákat)
+        # extra: run-hoz kötött latest, ha később másolgatnám a mappákat
         latest_run_path = os.path.join(self.save_dir, f"latest_{self.run_id}.pth")
         shutil.copyfile(path, latest_run_path)
 
