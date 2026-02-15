@@ -1,0 +1,5 @@
+futas_azonosito,lepesek_szama,befejezes_oka,ossz_haladas,kapott_pontszam,forras_modell
+run_20260215_131332,1333,goal,13.2900,879.9900,./ppo_runs/run_20260215_131332/latest_2026-02-15_131332.pth
+run_20260215_132646,1272,goal,13.2730,886.0730,./ppo_runs/run_20260215_132646/latest_2026-02-15_132646.pth
+run_20260215_133215,1264,goal,13.2817,886.8817,./ppo_runs/run_20260215_133215/latest_2026-02-15_133215.pth
+run_20260215_134040,1243,goal,13.2737,888.9737,./ppo_runs/run_20260215_134040/ppo_ep_1.pth

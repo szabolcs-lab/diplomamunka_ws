@@ -88,6 +88,21 @@ def generate_launch_description():
         output='screen'
     )
     
+    metrics_logger = Node(
+        package='metrics_pkg',
+        executable='metrics_log',
+        name='metrics_log',
+        output='screen',
+        parameters=[{
+            'method_name': 'a_star_nav2_dynamic',          # itt változik módszerenként
+            'odom_topic': '/odom',
+            'cmd_vel_topic': '/cmd_vel',
+            'scan_topic': '/scan',
+            'path_topic': '/planned_path_dilated',        # itt lehet eltérés pkg-nként
+            'csv_dir': './metrics_runs'           # közös mappa
+        }]
+    )
+    
     return LaunchDescription([
         map_file_arg,
         map_publication,
@@ -98,4 +113,5 @@ def generate_launch_description():
         gz_cmd_vel_bridge,
         gz_bridge_odom,
         tf_broadcaster,
+        metrics_logger
     ])

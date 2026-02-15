@@ -22,7 +22,7 @@ class PPOTrainer(Node):
     def __init__(self):
         super().__init__("ppo_trainer")
 
-        # minimál paraméterek 
+        # minimál paraméterek
         self.declare_parameter("train_mode", True)
         self.declare_parameter("control_hz", 10.0)
 
@@ -50,7 +50,7 @@ class PPOTrainer(Node):
         # mentés
         self.declare_parameter("runs_dir", "./ppo_runs")
 
-        # beolvasás 
+        # beolvasás
         self.train_mode = bool(self.get_parameter("train_mode").value)
         self.control_hz = float(self.get_parameter("control_hz").value)
 
@@ -74,7 +74,7 @@ class PPOTrainer(Node):
         self.runs_dir = str(self.get_parameter("runs_dir").value)
         os.makedirs(self.runs_dir, exist_ok=True)
 
-        #  run mappa (nem ír felül) 
+        # run mappa (nem ír felül)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.run_dir = os.path.join(self.runs_dir, f"run_{ts}")
         os.makedirs(self.run_dir, exist_ok=True)
@@ -82,19 +82,18 @@ class PPOTrainer(Node):
         # fájlok
         self.run_metrics_path = os.path.join(self.run_dir, "metrics.csv")
         self.global_metrics_path = os.path.join(self.runs_dir, "global_metrics.csv")
-        self.best_metric_path = os.path.join(self.runs_dir, "best_metric.csv")
+        self.best_metric_path = os.path.join(self.runs_dir, "best_metrics.csv")
         self.best_model_path = os.path.join(self.runs_dir, "best_latest.pth")
         self.latest_global_path = os.path.join(self.runs_dir, "latest_global.pth")
 
-        self._init_csv_if_needed(self.run_metrics_path, header=[
-            "steps", "reason", "offset", "smooth", "dist_goal", "min_range", "progress", "score"
-        ])
-        self._init_csv_if_needed(self.global_metrics_path, header=[
-            "run", "steps", "reason", "offset", "smooth", "dist_goal", "min_range", "progress", "score", "model"
-        ])
-        self._init_csv_if_needed(self.best_metric_path, header=[
-            "run", "steps", "reason", "progress", "score", "src_model"
-        ])
+        self._init_csv_if_needed(self.run_metrics_path, header=["lepesek_szama", "befejezes_oka", "eltolas_meterben", "simitas", "celtol_valo_tavolsag (m)", 
+                                                                "legkozelebbi_akadaly_tavolsag", "ossz_haladas", "kapott_pontszam"])
+        
+        self._init_csv_if_needed(self.global_metrics_path, header=["futas_azonosito", "lepesek_szama", "befejezes_oka", "eltolas_meterben", "simitas", 
+                                                                   "celtol_valo_tavolsag (m)", "legkozelebbi_akadaly_tavolsag", 
+                                                                   "ossz_haladas", "kapott_pontszam", "modell_fajl"])
+        
+        self._init_csv_if_needed(self.best_metric_path, header=["futas_azonosito", "lepesek_szama", "befejezes_oka", "ossz_haladas", "kapott_pontszam", "forras_modell"])
 
         # bemenet cach
         self.last_odom = None
@@ -103,7 +102,7 @@ class PPOTrainer(Node):
 
         # epizód állapot
         self.step_count = 0
-        self.prev_dist = None
+        self.prev_distance_goal = None
         self.progress_sum = 0.0
 
         # aktuális paramok
@@ -124,7 +123,7 @@ class PPOTrainer(Node):
         # legyen 1 epizód = 1 mentés
         self.trainer.save_freq = 1
 
-        # induláskor mindig BEST betöltés, ha van 
+        # induláskor mindig BEST betöltés, ha van
         if self.train_mode:
             self._load_best_if_exists()
 
@@ -189,24 +188,26 @@ class PPOTrainer(Node):
         if len(self.last_path.poses) < 2:
             return
 
-        # epizód eleje: egyszer választunk paramot
+        # epizód eleje: egyszer választok paramot
         if self.step_count == 0:
             self.pick_params_for_episode()
 
         # state
         state, info = self.build_state(self.last_odom, self.last_scan, self.last_path)
-        dist = info["dist_goal"]
+        distance_goal = info["distance_goal"]
         min_r = info["min_range"]
 
-        # progress számolás (összeg)
-        if self.prev_dist is not None:
-            self.progress_sum += (self.prev_dist - dist)
-        self.prev_dist = dist
+        # progress / delta (előbb számolom, utána frissítem prev-et!)
+        delta_distance_goal = 0.0
+        if self.prev_distance_goal is not None:
+            delta_distance_goal = (self.prev_distance_goal - distance_goal)
+            self.progress_sum += delta_distance_goal
+        self.prev_distance_goal = distance_goal
 
         can_be_goal = (self.step_count >= self.min_steps_for_goal)
 
         # done
-        if can_be_goal and dist < self.goal_tolerance:
+        if can_be_goal and distance_goal < self.goal_tolerance:
             reward, done, reason = 50.0, True, "goal"
         elif min_r < self.collision_distance:
             reward, done, reason = -50.0, True, "collision"
@@ -214,7 +215,7 @@ class PPOTrainer(Node):
             reward, done, reason = -10.0, True, "timeout"
         else:
             # egyszerű reward
-            reward, done, reason = (2.0 * (self.prev_dist - dist) - 0.01), False, "running"
+            reward, done, reason = (2.0 * delta_distance_goal - 0.01), False, "running"
 
         # store
         if self.train_mode:
@@ -222,14 +223,14 @@ class PPOTrainer(Node):
 
         self.step_count += 1
 
-        # publish param minden tickben
+        # publish param
         msg = Float32MultiArray()
         msg.data = [self.current_offset, self.current_smooth]
         self.pub_params.publish(msg)
 
         # epizód vége
         if done:
-            self.finish_and_exit(reason, dist, min_r)
+            self.finish_and_exit(reason, distance_goal, min_r)
 
     # Episode begin/end
     def pick_params_for_episode(self):
@@ -237,9 +238,9 @@ class PPOTrainer(Node):
         st = torch.tensor(state0, dtype=torch.float32)
 
         with torch.no_grad():
-            dist, _ = self.trainer.policy(st)
-            action = dist.sample() if self.train_mode else dist.mean
-            self.current_log_prob = float(dist.log_prob(action).sum(-1).item())
+            action_distribution, _ = self.trainer.policy(st)
+            action = action_distribution.sample() if self.train_mode else action_distribution.mean
+            self.current_log_prob = float(action_distribution.log_prob(action).sum(-1).item())
 
         action_np = action.squeeze(0).cpu().numpy().astype(np.float32)
         self.current_action = action_np
@@ -253,7 +254,7 @@ class PPOTrainer(Node):
         self.current_offset = off
         self.current_smooth = sm
 
-        self.prev_dist = float(info0["dist_goal"])
+        self.prev_distance_goal = float(info0["distance_goal"])
         self.progress_sum = 0.0
 
         self.get_logger().info(f"[EP START] off={self.current_offset:.3f} sm={self.current_smooth:.2f}")
@@ -270,7 +271,7 @@ class PPOTrainer(Node):
             self.trainer.finish_episode()
 
             # PPOTraining most mentett egy pth-t a save_dir-be (run_dir)
-            # egyszerűen megkeressük a legfrissebb .pth-t (ami nem latest)
+            #  megkeresem a legfrissebb .pth-t (ami nem latest)
             model_path = self._find_latest_model_in_run()
 
             # legyen "legutóbbi futás" modell
@@ -281,13 +282,17 @@ class PPOTrainer(Node):
         score = self._score(reason, self.progress_sum, self.step_count)
 
         # run metrics (1 sor)
-        self._append_csv(self.run_metrics_path, [self.step_count, reason, f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}", 
-                                                 f"{dist_goal:.4f}", f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}", ])
+        self._append_csv(self.run_metrics_path, [
+            self.step_count, reason, f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}",
+            f"{dist_goal:.4f}", f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}",
+        ])
 
         # global metrics (1 sor)
-        self._append_csv(self.global_metrics_path, [os.path.basename(self.run_dir), self.step_count, reason, 
-                                                    f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}", f"{dist_goal:.4f}", 
-                                                    f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}", model_path,])
+        self._append_csv(self.global_metrics_path, [
+            os.path.basename(self.run_dir), self.step_count, reason,
+            f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}", f"{dist_goal:.4f}",
+            f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}", model_path,
+        ])
 
         # best frissítés (ha van mentett modell)
         if model_path and os.path.exists(model_path):
@@ -343,7 +348,10 @@ class PPOTrainer(Node):
         # best_latest.pth = ez a modell
         try:
             shutil.copyfile(model_path, self.best_model_path)
-            self._append_csv(self.best_metric_path, [os.path.basename(self.run_dir), steps,reason, f"{progress:.4f}", f"{score:.4f}", model_path])
+            self._append_csv(
+                self.best_metric_path,
+                [os.path.basename(self.run_dir), steps, reason, f"{progress:.4f}", f"{score:.4f}", model_path]
+            )
             self.get_logger().info(f"[BEST] Frissült! score={score:.2f} -> {self.best_model_path}")
         except Exception as e:
             self.get_logger().error(f"[BEST] mentés hiba: {e}")
@@ -373,18 +381,18 @@ class PPOTrainer(Node):
             points_per_bin = max(1, total_lidar_points // self.lidar_bins)
 
             lidar_vector = []
-            for bin_index in range(self.lidar_bins):
-                start_index = bin_index * points_per_bin
-                end_index = min(total_lidar_points, (bin_index + 1) * points_per_bin)
+            for i in range(self.lidar_bins):
+                start_index = i * points_per_bin
+                end_index = min(total_lidar_points, (i + 1) * points_per_bin)
 
                 if start_index < total_lidar_points:
-                    min_distance_in_bin = float(np.min(ranges[start_index:end_index]))
+                    min_distance_i = float(np.min(ranges[start_index:end_index]))
                 else:
-                    min_distance_in_bin = self.lidar_max_range
+                    min_distance_i = self.lidar_max_range
 
-                lidar_vector.append(min_distance_in_bin / self.lidar_max_range)
+                lidar_vector.append(min_distance_i / self.lidar_max_range)
 
-        state = np.array([distance_goal, robot_speed, robot_turn_speed, float(min_range)] + lidar_vector, dtype=np.float32)
+        state = np.array([distance_goal, robot_speed, robot_turn_speed, float(min_range)] + lidar_vector,dtype=np.float32)
         info = {"distance_goal": float(distance_goal), "min_range": float(min_range)}
         return state, info
 

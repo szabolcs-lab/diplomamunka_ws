@@ -74,8 +74,8 @@ def generate_launch_description():
 
             'odom_topic': '/odom',
             'scan_topic': '/scan',
-            'path_topic': '/planned_path_refined',
-            'params_topic': '/refiner_params',
+            'path_topic': '/planned_path_smoother',
+            'params_topic': '/smoother_params',
 
             # opcionális: hol hozza létre az új run mappát
             'runs_dir': './ppo_runs',
@@ -141,7 +141,7 @@ def generate_launch_description():
         d_star_lite_path_planner,
         trajectory_smoother,
         ppo_trainer,
-        rviz,
+        #rviz,
         nav2_bringup,
         gz_cmd_vel_bridge,
         gz_bridge_odom,
