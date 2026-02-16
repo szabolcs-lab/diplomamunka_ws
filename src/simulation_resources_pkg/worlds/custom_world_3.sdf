@@ -175,14 +175,14 @@
                 <collision name="collision">
                     <geometry>
                         <box>
-                            <size>0.5 5 2</size>
+                            <size>0.5 3.5 2</size>
                         </box>
                     </geometry>
                 </collision>
                 <visual name="visual">
                     <geometry>
                         <box>
-                            <size>0.5 5 2</size>
+                            <size>0.5 3.5 2</size>
                         </box>
                     </geometry>
                     <material>
@@ -196,19 +196,19 @@
 
         <model name="wall9">
             <static>true</static>
-            <pose>-2 2 1 0 0 0</pose>
+            <pose>-2 3 1 0 0 0</pose>
             <link name="link">
                 <collision name="collision">
                     <geometry>
                         <box>
-                            <size>0.5 16 2</size>
+                            <size>0.5 14 2</size>
                         </box>
                     </geometry>
                 </collision>
                 <visual name="visual">
                     <geometry>
                         <box>
-                            <size>0.5 16 2</size>
+                            <size>0.5 14 2</size>
                         </box>
                     </geometry>
                     <material>

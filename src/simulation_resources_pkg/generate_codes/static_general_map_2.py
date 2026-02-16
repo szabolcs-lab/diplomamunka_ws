@@ -188,11 +188,11 @@ def main():
         {"name": "wall1", "x": 0, "y": 0, "size_x": 0.5, "size_y": 9, "yaw": 0},
         {"name": "wall2", "x": 0, "y": 0, "size_x": 8, "size_y": 0.5, "yaw": 0},
 
-        {"name": "wall3", "x": 3, "y": 3, "size_x": 0.5, "size_y": 6, "yaw": 0.6},
+        {"name": "wall3", "x": 3, "y": 3, "size_x": 0.5, "size_y": 5, "yaw": 0.6},
         {"name": "wall4", "x": -4, "y": -2, "size_x": 0.5, "size_y": 3.5, "yaw": -0.5},
 
         {"name": "wall5", "x": -6, "y": 7, "size_x": 0.5, "size_y": 5.5, "yaw": 0},
-        {"name": "wall6",  "x": -3, "y": 8, "size_x": 6,   "size_y": 0.5, "yaw": 0},
+        {"name": "wall6",  "x": -3, "y": 9, "size_x": 6,   "size_y": 0.5, "yaw": 0},
 
         {"name": "wall7", "x": 6, "y": 7, "size_x": 0.5, "size_y": 6, "yaw": 0},
         #{"name": "wall8",  "x": 7, "y": 2, "size_x": 3,   "size_y": 0.5, "yaw": 0},

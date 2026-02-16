@@ -109,3 +109,4 @@ local_costmap:
         enabled: true
         inflation_radius: 0.5
         cost_scaling_factor: 3.0
+

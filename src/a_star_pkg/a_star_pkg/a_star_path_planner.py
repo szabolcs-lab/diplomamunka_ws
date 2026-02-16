@@ -24,7 +24,7 @@ class AStarPathPlanner(Node):
         self.get_logger().info('A* Path Planner node indul....')
         
         # paraméterek beolvasása yaml-ből launch fájlba, majd onnan a változókba
-        self.declare_parameter('margin', 0.5)
+        self.declare_parameter('margin', 0.8)
         self.declare_parameter('resample_step', 0.1)
         self.declare_parameter('map_file', 'unknown.csv')
         self.declare_parameter('scenario', 'static')

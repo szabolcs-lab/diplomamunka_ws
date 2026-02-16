@@ -123,14 +123,14 @@
                 <collision name="collision">
                     <geometry>
                         <box>
-                            <size>0.5 6 2</size>
+                            <size>0.5 5 2</size>
                         </box>
                     </geometry>
                 </collision>
                 <visual name="visual">
                     <geometry>
                         <box>
-                            <size>0.5 6 2</size>
+                            <size>0.5 5 2</size>
                         </box>
                     </geometry>
                     <material>
@@ -196,7 +196,7 @@
 
         <model name="wall6">
             <static>true</static>
-            <pose>-3 8 1 0 0 0</pose>
+            <pose>-3 9 1 0 0 0</pose>
             <link name="link">
                 <collision name="collision">
                     <geometry>
