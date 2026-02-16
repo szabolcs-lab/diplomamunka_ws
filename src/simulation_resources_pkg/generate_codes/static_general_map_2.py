@@ -185,30 +185,30 @@ def main():
 
     # akadályok definiálása
     walls = [
-        {"name": "wall1", "x": 0, "y": 0, "size_x": 0.5, "size_y": 11, "yaw": 0},
-        {"name": "wall2", "x": 0, "y": 0, "size_x": 9, "size_y": 0.5, "yaw": 0},
+        {"name": "wall1", "x": 0, "y": 0, "size_x": 0.5, "size_y": 9, "yaw": 0},
+        {"name": "wall2", "x": 0, "y": 0, "size_x": 8, "size_y": 0.5, "yaw": 0},
 
         {"name": "wall3", "x": 3, "y": 3, "size_x": 0.5, "size_y": 6, "yaw": 0.6},
-        {"name": "wall4", "x": -4, "y": -2, "size_x": 0.5, "size_y": 5, "yaw": -0.5},
+        {"name": "wall4", "x": -4, "y": -2, "size_x": 0.5, "size_y": 3.5, "yaw": -0.5},
 
-        {"name": "wall5", "x": -6, "y": 5, "size_x": 0.5, "size_y": 5.5, "yaw": 0},
-        {"name": "wall6",  "x": -3, "y": 6, "size_x": 6,   "size_y": 0.5, "yaw": 0},
+        {"name": "wall5", "x": -6, "y": 7, "size_x": 0.5, "size_y": 5.5, "yaw": 0},
+        {"name": "wall6",  "x": -3, "y": 8, "size_x": 6,   "size_y": 0.5, "yaw": 0},
 
-        {"name": "wall7", "x": 6, "y": 6, "size_x": 0.5, "size_y": 6, "yaw": 0},
-        {"name": "wall8",  "x": 7, "y": 2, "size_x": 3,   "size_y": 0.5, "yaw": 0},
+        {"name": "wall7", "x": 6, "y": 7, "size_x": 0.5, "size_y": 6, "yaw": 0},
+        #{"name": "wall8",  "x": 7, "y": 2, "size_x": 3,   "size_y": 0.5, "yaw": 0},
 
-        {"name": "wall9", "x": -7, "y": -5, "size_x": 0.5, "size_y": 6, "yaw": 0},
+        {"name": "wall9", "x": -8, "y": -5, "size_x": 0.5, "size_y": 5, "yaw": 0},
         {"name": "wall10",  "x": -5, "y": -7, "size_x": 6,   "size_y": 0.5, "yaw": 0},
 
-        {"name": "wall11",  "x": 6,  "y": -7, "size_x": 0.5, "size_y": 6, "yaw": 0.4},
+        {"name": "wall11",  "x": 6,  "y": -8, "size_x": 0.5, "size_y": 5, "yaw": 0.4},
         {"name": "wall12",  "x": 8,  "y": -3, "size_x": 0.5, "size_y": 7, "yaw": 0},
 
         {"name": "wall13", "x": 4, "y": -10, "size_x": 6, "size_y": 0.5, "yaw": 0},
-        {"name": "wall14", "x": 10, "y": -6, "size_x": 0.5, "size_y": 6, "yaw": 0},
+        #{"name": "wall14", "x": 10, "y": -6, "size_x": 0.5, "size_y": 6, "yaw": 0},
         
-        {"name": "box1", "x": -2, "y": 1, "size_x": 1.2, "size_y": 1.2, "yaw": 0},
-        {"name": "box2", "x": 2,  "y": -4, "size_x": 1.0, "size_y": 1.0, "yaw": 0},
-        {"name": "box3", "x": -7, "y": 0,  "size_x": 1.5, "size_y": 1.5, "yaw": 0}
+        #{"name": "box1", "x": -2, "y": 1, "size_x": 1.2, "size_y": 1.2, "yaw": 0},
+        {"name": "box2", "x": 2.5,  "y": -4, "size_x": 0.5, "size_y": 0.5, "yaw": 0},
+        {"name": "box3", "x": -8, "y": 1.5,  "size_x": 1.5, "size_y": 1.5, "yaw": 0}
     ]
 
     # OccupancyGrid generálása

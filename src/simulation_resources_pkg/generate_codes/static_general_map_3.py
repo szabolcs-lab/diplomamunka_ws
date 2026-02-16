@@ -185,22 +185,22 @@ def main():
 
     # akadályok definiálása
     walls = [
-        {"name": "wall1", "x": -8, "y": 8, "size_x": 0.5, "size_y": 4, "yaw": 0},
-        {"name": "wall2", "x": -8, "y": 1, "size_x": 0.5, "size_y": 4, "yaw": 0},
-        {"name": "wall3", "x": -8, "y": -6, "size_x": 0.5, "size_y": 4, "yaw": 0},
+        #{"name": "wall1", "x": -8, "y": 8, "size_x": 0.5, "size_y": 4, "yaw": 0},
+        #{"name": "wall2", "x": -8, "y": 1, "size_x": 0.5, "size_y": 4, "yaw": 0},
+        #{"name": "wall3", "x": -8, "y": -6, "size_x": 0.5, "size_y": 4, "yaw": 0},
         
-        {"name": "wall4", "x": -6, "y": 6, "size_x": 0.5, "size_y": 6, "yaw": 0},
-        {"name": "wall5", "x": -6, "y": -1, "size_x": 0.5, "size_y": 4, "yaw": 0},
-        {"name": "wall6", "x": -6, "y": -8, "size_x": 0.5, "size_y": 4, "yaw": 0},
+        {"name": "wall4", "x": -8, "y": 6, "size_x": 0.5, "size_y": 7, "yaw": 0},
+        {"name": "wall5", "x": -8, "y": -1, "size_x": 1, "size_y": 2, "yaw": 0},
+        {"name": "wall6", "x": -7.5, "y": -8, "size_x": 0.5, "size_y": 4, "yaw": 0},
         
-        {"name": "wall7", "x": -4, "y": 4, "size_x": 0.5, "size_y": 8, "yaw": 0},
-        {"name": "wall8", "x": -4, "y": -5, "size_x": 0.5, "size_y": 6, "yaw": 0},
+        {"name": "wall7", "x": -5, "y": 4, "size_x": 0.5, "size_y": 6, "yaw": 0},
+        {"name": "wall8", "x": -5, "y": -5, "size_x": 0.5, "size_y": 5, "yaw": 0},
         
-        {"name": "wall9", "x": -1.5, "y": 2, "size_x": 0.5, "size_y": 16, "yaw": 0},   
-        {"name": "wall10", "x": 1.5, "y": -3, "size_x": 0.5, "size_y": 14, "yaw": 0},
+        {"name": "wall9", "x": -2, "y": 2, "size_x": 0.5, "size_y": 16, "yaw": 0},   
+        {"name": "wall10", "x": 1.5, "y": -2, "size_x": 0.5, "size_y": 16, "yaw": 0},
         
-        {"name": "wall11", "x": 7.5, "y": 0, "size_x": 5, "size_y": 0.5, "yaw": 0},   
-        {"name": "wall12", "x": 4, "y": 4, "size_x": 5, "size_y": 0.5, "yaw": 0},
+        {"name": "wall11", "x": 7.5, "y": 1, "size_x": 5, "size_y": 0.5, "yaw": 0},   
+        {"name": "wall12", "x": 4, "y": 6, "size_x": 5, "size_y": 0.5, "yaw": 0},
         
         {"name": "wall13", "x": 7, "y": -6.5, "size_x": 0.5, "size_y": 7, "yaw": 0},
         

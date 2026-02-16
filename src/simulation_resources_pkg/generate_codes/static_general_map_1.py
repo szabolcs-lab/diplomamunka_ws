@@ -185,7 +185,7 @@ def main():
     # akadályok definiálása
     walls = [
         {"name": "wall1", "x": 5, "y": 0, "size_x": 0.5, "size_y": 10, "yaw": 0},
-        {"name": "wall2", "x": 0, "y": 2, "size_x": 4, "size_y": 0.5, "yaw": 0},
+        {"name": "wall2", "x": 0, "y": 3, "size_x": 4, "size_y": 0.5, "yaw": 0},
         {"name": "wall3", "x": 8, "y": 2, "size_x": 1, "size_y": 10, "yaw": 0},
         {"name": "wall4", "x": 1, "y": -5, "size_x": 0.5, "size_y": 10, "yaw": 0},
         {"name": "wall5", "x": -4, "y": 2.5, "size_x": 0.5, "size_y": 15, "yaw": 0},
@@ -228,3 +228,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
