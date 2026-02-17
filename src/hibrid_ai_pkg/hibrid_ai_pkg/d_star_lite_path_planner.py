@@ -16,7 +16,7 @@ class DStarLitePathPlanner(Node):
 
         self.get_logger().info('D* Lite Path Planner node indul....')
 
-        self.declare_parameter('margin', 0.8)
+        self.declare_parameter('margin', 0.5)
         self.declare_parameter('resample_step', 0.1)
 
         self.margin = self.get_parameter('margin').get_parameter_value().double_value
@@ -147,22 +147,37 @@ class DStarLitePathPlanner(Node):
         
         return
 
-    def dilate_obstacles(self, grid: np.ndarray, cells_radius: int):
-        height, width = grid.shape
-        out_result = grid.copy()
+    # akadáloky párnázása 
+    def dilate_obstacles(self, grid: np.ndarray, radius_cells: int):
+        map_height, map_width = grid.shape
+        dilaated_grid = grid.copy()
         
-        obstacle_ys, obstacle_xs = np.where(grid == 1)
-        
-        for y, x in zip(obstacle_ys, obstacle_xs):
-            top = max(0, y - cells_radius)
-            bottom = min(height, y + cells_radius + 1)
-            left = max(0, x - cells_radius)
-            right = min(width, x + cells_radius + 1)
-            
-            out_result[top:bottom, left:right] = 1
-            
-        return out_result
+        # kiszűrjük az összes akadályt és azok pontjait
+        obstacle_rows, obstacle_cols = np.where(grid == 1)
 
+        #négyzet
+        radius_squared = radius_cells ** 2
+
+        # végigmegyünk a kiszűrt pontokon és szélesítjük az akadály területét egy megadott sugárral
+        for obstacle_row, obstacle_col in zip(obstacle_rows, obstacle_cols):
+            min_row = max(0, obstacle_row - radius_cells)
+            max_row = min(map_height, obstacle_row + radius_cells + 1)
+            min_col = max(0, obstacle_col - radius_cells)
+            max_col = min(map_width, obstacle_col + radius_cells + 1)
+
+            for row in range(min_row, max_row):
+                row_offset = row - obstacle_row
+
+                for column in range(min_col, max_col):
+                    column_offset = column - obstacle_col
+
+                    #Circle ellenőrzés!
+                    if column_offset**2 + row_offset**2 <= radius_squared:
+                        dilaated_grid[row, column] = 1
+
+        return dilaated_grid
+
+    """
     def resample_path(self, points: list, step=None):
         if not points:
             return []
@@ -195,7 +210,64 @@ class DStarLitePathPlanner(Node):
             previous_point = actual_point
 
         return out_result
-
+    """
+    def resample_path(self, path_points: list[tuple[float, float]], step: float = None):
+        """
+        Robotikai útvonal resampling egyenletes távolságraa.
+        Minden új pont pontosan 'step' távolságra van egymástól.
+        """
+        if step is None:
+            step = getattr(self, 'step', 0.1)  # self.step vagy alapértelmezett 0.1m
+        
+        if len(path_points) < 2:
+            return path_points[:]
+        
+        resampled_points = [path_points[0]]  # Kezdőpont mindig benne
+        distance_remainder = 0.0  # Hátralévő távolság az előző lépésből
+        
+        # Minden szakaszon végigmegyünk
+        for i in range(len(path_points) - 1):
+            # Szakasz kezdő- és végpontja
+            start_x, start_y = path_points[i]
+            end_x, end_y = path_points[i + 1]
+            
+            # Szakasz vektora és hossza
+            segment_dx = end_x - start_x
+            segment_dy = end_y - start_y
+            segment_length = math.hypot(segment_dx, segment_dy)  # Euklidészi távolság
+            
+            if segment_length < 1e-9:  # Túl rövid szakasz, kihagyjuk
+                continue
+                
+            # Irány egységvektora
+            unit_vector_x = segment_dx / segment_length
+            unit_vector_y = segment_dy / segment_length
+            
+            # Első lépés távolsága (maradékból indulunk)
+            distance_along_segment = step - distance_remainder
+            
+            # Új pontokat generálunk ezen a szakaszon
+            while distance_along_segment <= segment_length:
+                # Új pont pozíciója a szakaszon
+                new_point_x = start_x + unit_vector_x * distance_along_segment
+                new_point_y = start_y + unit_vector_y * distance_along_segment
+                resampled_points.append((new_point_x, new_point_y))
+                
+                distance_along_segment += step  # Következő lépés
+            
+            # Maradék távolság frissítése a következő szakaszhoz
+            distance_remainder = segment_length - (distance_along_segment - step)
+        
+        # Garantáljuk, hogy a célpont mindig benne legyen
+        last_x, last_y = resampled_points[-1]
+        target_x, target_y = path_points[-1]
+        
+        if math.hypot(last_x - target_x, last_y - target_y) > 1e-6:
+            resampled_points.append(path_points[-1])
+        
+        return resampled_points
+    
+    
 def main(args=None):
     rclpy.init(args=args)
     node = DStarLitePathPlanner()

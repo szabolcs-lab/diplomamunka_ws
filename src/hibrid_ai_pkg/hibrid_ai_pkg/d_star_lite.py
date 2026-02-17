@@ -56,7 +56,8 @@ class DStarLite():
             if 0 <= neighbor_y < len(self.grid) and 0 <= neighbor_x < len(self.grid[0]) and self.grid[neighbor_y][neighbor_x] == 0:
                 
                 if abs(direction_y) > 0 and abs(direction_x) > 0:
-                    if self.grid[node[0]][direction_x] != 0 or  self.grid[direction_y][node[1]] != 0:
+                    #if self.grid[node[0]][direction_x] != 0 or  self.grid[direction_y][node[1]] != 0:
+                    if self.grid[node[0]][node[1] + direction_x] != 0 or self.grid[node[0] + direction_y][node[1]] != 0:
                         continue
                     
                 neighbors.append((neighbor_y, neighbor_x))
