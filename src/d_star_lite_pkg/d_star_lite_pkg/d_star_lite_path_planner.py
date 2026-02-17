@@ -24,8 +24,8 @@ class DStarLitePathPlanner(Node):
         self.get_logger().info('D* Lite Path Planner node indul....')
         
         # paraméterek beolvasása yaml-ből launch fájlba, majd onnan a változókba
-        self.declare_parameter('margin', 0.8)
-        self.declare_parameter('resample_step', 0.1)
+        self.declare_parameter('margin', 0.6)
+        self.declare_parameter('resample_step', 0.5)
         self.declare_parameter('map_file', 'unknown.csv')
         self.declare_parameter('scenario', 'static') 
         
@@ -260,25 +260,38 @@ class DStarLitePathPlanner(Node):
         
         return path_length
        
-             
-    # akadáloky párnázása       
-    def dilate_obstacles(self, grid: np.ndarray, cells_radius: int):
-        height, width = grid.shape
-        out = grid.copy()
+       
+    # akadáloky párnázása 
+    def dilate_obstacles(self, grid: np.ndarray, radius_cells: int):
+        map_height, map_width = grid.shape
+        dilaated_grid = grid.copy()
         
         # kiszűrjük az összes akadályt és azok pontjait
-        ys, xs = np.where(grid == 1)
-        
+        obstacle_rows, obstacle_cols = np.where(grid == 1)
+
+        #négyzet
+        radius_squared = radius_cells ** 2
+
         # végigmegyünk a kiszűrt pontokon és szélesítjük az akadály területét egy megadott sugárral
-        for y, x in zip(ys, xs):
-            y0 = max(0, y - cells_radius)
-            y1 = min(height, y + cells_radius + 1)
-            x0 = max(0, x - cells_radius)
-            x1 = min(width, x + cells_radius +1)
-            out[y0:y1,x0:x1] = 1
-            
-        return out
-        
+        for obstacle_row, obstacle_col in zip(obstacle_rows, obstacle_cols):
+            min_row = max(0, obstacle_row - radius_cells)
+            max_row = min(map_height, obstacle_row + radius_cells + 1)
+            min_col = max(0, obstacle_col - radius_cells)
+            max_col = min(map_width, obstacle_col + radius_cells + 1)
+
+            for row in range(min_row, max_row):
+                row_offset = row - obstacle_row
+
+                for column in range(min_col, max_col):
+                    column_offset = column - obstacle_col
+
+                    #Circle ellenőrzés!
+                    if column_offset**2 + row_offset**2 <= radius_squared:
+                        dilaated_grid[row, column] = 1
+
+        return dilaated_grid
+
+    
              
     # az útvonal pontjait simítjuk, hogy eggyenletes legyen      
     def resample_path(self, points: list, step=0.1):
