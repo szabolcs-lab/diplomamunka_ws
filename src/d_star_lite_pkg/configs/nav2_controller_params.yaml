@@ -1,20 +1,17 @@
 controller_server:
   ros__parameters:
     use_sim_time: true
-
     controller_frequency: 10.0
 
-    # TF frame-ek
     global_frame: "map"
-    odom_frame:   "odom"
+    odom_frame: "odom"
     robot_base_frame: "base_link"
-
-    # Nav2 által publikált cmd_vel topic
     cmd_vel_topic: "cmd_vel"
 
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["goal_checker"]
-    controller_plugins: ["FollowPathRPP"]
+
+    controller_plugins: ["FollowPathMPPI"] #erdetileg RPP-t használtam, de nem volt megbízható a működése
 
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
@@ -27,43 +24,67 @@ controller_server:
       yaw_goal_tolerance: 0.1
       stateful: true
 
-    FollowPathRPP:
-      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+    FollowPathMPPI:
+      plugin: "nav2_mppi_controller::MPPIController"
+      motion_model: "DiffDrive"
 
-      # sebességek
-      desired_linear_vel: 0.20 #0.25
-      max_linear_accel: 0.5
-      max_angular_accel: 1.0
+      # Stabil indulás 10 Hz-hez
+      model_dt: 0.1
+      time_steps: 25
+      batch_size: 2000
+      iteration_count: 1
 
-      # lookahead - szorosabb pályakövetéshez
-      lookahead_dist: 0.45 #0.3
-      min_lookahead_dist: 0.18 #0.2
-      max_lookahead_dist: 0.70 #0.4
-      use_velocity_scaled_lookahead_dist: true #false
+      # Sebességek
+      vx_max: 0.35
+      vx_min: 0.00
+      wz_max: 1.8
+      vy_max: 0.0
 
-      # induláskor forduljon rá a path-ra
-      use_rotate_to_heading: true
-      rotate_to_heading_min_angle: 0.3  # ~17 fok
+      # Ne legyen túl "szétszórt" (különben sokat forog)
+      vx_std: 0.12
+      wz_std: 0.35
 
-      use_approach_velocity_scaling: true
-      approach_velocity_scaling_dist: 0.6
-      transform_tolerance: 0.1
+      prune_distance: 1.5
 
-      # pályakövetés finomhangolás
-      regulated_linear_scaling_min_radius: 0.4 #0.9
-      regulated_linear_scaling_min_speed: 0.08 #0.10
-      use_regulated_linear_velocity_scaling: true
-      use_cost_regulated_linear_velocity_scaling: true #false
+      #KRITIKÁK: ettől lesz "jó irány + tempó"
+      critics: [
+        "ConstraintCritic",
+        "CostCritic",
+        "PathAlignCritic",
+        "PathFollowCritic",
+        "GoalCritic",
+        "GoalAngleCritic",
+        "PreferForwardCritic"
+      ]
 
-      allow_reversing: false
-      enable_odom_smoothing: true
+      PreferForwardCritic:
+        enabled: true
+        weight: 2.0
 
-      max_robot_pose_search_dist: 100.0
+      PathFollowCritic:
+        enabled: true
+        weight: 5.0
+
+      PathAlignCritic:
+        enabled: true
+        weight: 4.0
+
+      GoalCritic:
+        enabled: true
+        weight: 2.0
+
+      GoalAngleCritic:
+        enabled: true
+        weight: 4.0
+
+      CostCritic:
+        enabled: true
+        weight: 2.0
 
 
-# =========================
+
+
 #  LOCAL COSTMAP
-# =========================
 local_costmap:
   local_costmap:
     ros__parameters:
@@ -110,6 +131,6 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         enabled: true
-        inflation_radius: 0.50 #0.5
+        inflation_radius: 0.40 #0.5
         cost_scaling_factor: 5.0 #3.0
 
