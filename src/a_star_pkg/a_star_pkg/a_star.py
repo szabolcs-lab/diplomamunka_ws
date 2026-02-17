@@ -30,7 +30,8 @@ class AStar:
                          
                 # átlós lépés miatt ellenőrzzük, hogy a szomszédos cellál, amik mellette vannak az adott irányból nem-e akadályok, ha az kihagyjuk  
                 if abs(direction_y) > 0 and abs(direction_x) > 0:              
-                    if self.grid[node[0]][neighbor_x] != 0 or self.grid[neighbor_y][node[1]] != 0:
+                    #if self.grid[node[0]][neighbor_x] != 0 or self.grid[neighbor_y][node[1]] != 0:
+                    if self.grid[node[0]][node[1] + direction_x] != 0 or self.grid[node[0] + direction_y][node[1]] != 0:
                         continue
                     
                 neighbors.append((neighbor_y, neighbor_x))
