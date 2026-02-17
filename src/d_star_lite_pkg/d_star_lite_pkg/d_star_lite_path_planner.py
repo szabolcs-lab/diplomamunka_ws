@@ -292,7 +292,7 @@ class DStarLitePathPlanner(Node):
         return dilaated_grid
 
     
-             
+    """         
     # az útvonal pontjait simítjuk, hogy eggyenletes legyen      
     def resample_path(self, points: list, step=0.1):
         if not points:
@@ -331,6 +331,62 @@ class DStarLitePathPlanner(Node):
             out.append(points[-1])
             
         return out
+    """
+    def resample_path(self, path_points: list[tuple[float, float]], step: float = None):
+        """
+        Robotikai útvonal resampling egyenletes távolságraa.
+        Minden új pont pontosan 'step' távolságra van egymástól.
+        """
+        if step is None:
+            step = getattr(self, 'step', 0.1)  # self.step vagy alapértelmezett 0.1m
+        
+        if len(path_points) < 2:
+            return path_points[:]
+        
+        resampled_points = [path_points[0]]  # Kezdőpont mindig benne
+        distance_remainder = 0.0  # Hátralévő távolság az előző lépésből
+        
+        # Minden szakaszon végigmegyünk
+        for i in range(len(path_points) - 1):
+            # Szakasz kezdő- és végpontja
+            start_x, start_y = path_points[i]
+            end_x, end_y = path_points[i + 1]
+            
+            # Szakasz vektora és hossza
+            segment_dx = end_x - start_x
+            segment_dy = end_y - start_y
+            segment_length = math.hypot(segment_dx, segment_dy)  # Euklidészi távolság
+            
+            if segment_length < 1e-9:  # Túl rövid szakasz, kihagyjuk
+                continue
+                
+            # Irány egységvektora
+            unit_vector_x = segment_dx / segment_length
+            unit_vector_y = segment_dy / segment_length
+            
+            # Első lépés távolsága (maradékból indulunk)
+            distance_along_segment = step - distance_remainder
+            
+            # Új pontokat generálunk ezen a szakaszon
+            while distance_along_segment <= segment_length:
+                # Új pont pozíciója a szakaszon
+                new_point_x = start_x + unit_vector_x * distance_along_segment
+                new_point_y = start_y + unit_vector_y * distance_along_segment
+                resampled_points.append((new_point_x, new_point_y))
+                
+                distance_along_segment += step  # Következő lépés
+            
+            # Maradék távolság frissítése a következő szakaszhoz
+            distance_remainder = segment_length - (distance_along_segment - step)
+        
+        # Garantáljuk, hogy a célpont mindig benne legyen
+        last_x, last_y = resampled_points[-1]
+        target_x, target_y = path_points[-1]
+        
+        if math.hypot(last_x - target_x, last_y - target_y) > 1e-6:
+            resampled_points.append(path_points[-1])
+        
+        return resampled_points
     
     # visszaadjuk az aktuális memóriahasználatot (MB) és CPU-t (%)
     def measure_resources(self):     
