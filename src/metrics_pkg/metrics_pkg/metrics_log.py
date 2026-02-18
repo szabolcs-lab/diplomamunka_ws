@@ -14,19 +14,18 @@ from geometry_msgs.msg import Twist
 
 class MetricsLog(Node):
     """
-      Start: amikor előszöör megmozdul a robot (/cmd_vel nem 0)
-      End: ha 2 másodpercig áll (cmd_vel ~ 0)
-      Metrikák:
-          vegrehajtasi_ido
-          utkozesek_szama (min_range < collision_distance, élváltással számolva)
-          path deviation (robot - legközelebbi path pont)
-          energia (|dv| + k*|dw|)
+    Start: amikor először megmozdul a robot (/cmd_vel nem 0)
+    End (javasolt): cél közelében + stop_time_s ideje áll (cmd_vel ~ 0)
+    - végrehajtási idő
+    - ütközések száma (min_range < collision_distance, élváltással számolva)
+    - path deviation (robot - legközelebbi path pont)
+    - energia (|dv| + k*|dw|)
     """
 
     def __init__(self):
         super().__init__("metrics_log")
 
-        #paraméterek
+        # paraméterek
         self.declare_parameter("modszer", "ppo_hybrid")  # astar / dstar / rrtstar / ppo_hybrid
         self.declare_parameter("palya", "occupancy_grid_1.csv")
 
@@ -36,12 +35,17 @@ class MetricsLog(Node):
         self.declare_parameter("cmd_vel_topic", "/cmd_vel")
 
         self.declare_parameter("collision_distance", 0.18)
-        self.declare_parameter("stop_time_s", 2.0)          # ennyi ideig áll - vége
-        self.declare_parameter("start_speed_eps", 0.01)     # ekkora sebességnél már "indul"
-        self.declare_parameter("stop_speed_eps", 0.01)      # ekkora alatt "áll"
 
-        self.declare_parameter("turn_weight", 0.5)          # energia: |dv| + turn_weight*|dw|
+        self.declare_parameter("stop_time_s", 2.0)
+        self.declare_parameter("start_speed_eps", 0.01)
+        self.declare_parameter("stop_speed_eps", 0.01)
+
+        self.declare_parameter("turn_weight", 0.5)
         self.declare_parameter("csv_dir", "./metrics_runs")
+
+        #cél-közeli befejezés
+        self.declare_parameter("goal_tolerance", 0.8)          # méter
+        self.declare_parameter("need_goal_to_finish", True)    # ha True: csak cél közelében fejezünk be
 
         # beolvasás
         self.modszer = str(self.get_parameter("modszer").value)
@@ -53,6 +57,7 @@ class MetricsLog(Node):
         self.cmd_vel_topic = str(self.get_parameter("cmd_vel_topic").value)
 
         self.collision_distance = float(self.get_parameter("collision_distance").value)
+
         self.stop_time_s = float(self.get_parameter("stop_time_s").value)
         self.start_speed_eps = float(self.get_parameter("start_speed_eps").value)
         self.stop_speed_eps = float(self.get_parameter("stop_speed_eps").value)
@@ -61,7 +66,10 @@ class MetricsLog(Node):
         self.csv_dir = str(self.get_parameter("csv_dir").value)
         os.makedirs(self.csv_dir, exist_ok=True)
 
-        # cache 
+        self.goal_tolerance = float(self.get_parameter("goal_tolerance").value)
+        self.need_goal_to_finish = bool(self.get_parameter("need_goal_to_finish").value)
+
+        # cache
         self.last_odom = None
         self.last_scan = None
         self.last_path = None
@@ -87,6 +95,7 @@ class MetricsLog(Node):
         self.previous_robot_speed = None
         self.previous_robot_turn_speed = None
 
+        # sub-ok
         self.create_subscription(Odometry, self.odom_topic, self.odom_callback, 20)
         self.create_subscription(LaserScan, self.scan_topic, self.scan_callback, 10)
         self.create_subscription(Path, self.path_topic, self.path_callback, 10)
@@ -94,8 +103,13 @@ class MetricsLog(Node):
 
         self.timer = self.create_timer(0.1, self.on_timer)
 
-        self.get_logger().info(f"MetricsLog indul: {self.modszer}, palya={self.palya}")
-        self.get_logger().info(f"Start: /cmd_vel mozgás, End: {self.stop_time_s}s állás")
+        self.get_logger().info(f"MetricsLog indul: modszer={self.modszer}, palya={self.palya}")
+        self.get_logger().info(f"Start: {self.cmd_vel_topic} mozgás")
+        
+        if self.need_goal_to_finish:
+            self.get_logger().info(f"End: cél közelében (tol={self.goal_tolerance}m) + {self.stop_time_s}s állás")
+        else:
+            self.get_logger().info(f"End: {self.stop_time_s}s állás (cél nélkül is)")
 
     def now_sec(self) -> float:
         return self.get_clock().now().nanoseconds * 1e-9
@@ -123,9 +137,7 @@ class MetricsLog(Node):
             self.run_started = True
             self.start_time = now
             self.last_move_time = now
-            
             self.get_logger().info("[METRICS] Futás indult (cmd_vel mozgás).")
-            
             return
 
         # ha már fut, frissítjük a "legutóbbi mozgás" időt
@@ -136,11 +148,9 @@ class MetricsLog(Node):
         if self.finished:
             return
 
-        # még nem indult
         if not self.run_started:
             return
 
-        # kell minimum odom+scan a metrikákhoz
         if self.last_odom is None or self.last_scan is None:
             return
 
@@ -150,33 +160,47 @@ class MetricsLog(Node):
         
         if in_collision_now and (not self._in_collision):
             self.collision_count += 1
-            
         self._in_collision = in_collision_now
 
         # 2) deviation
         if self.last_path is not None and len(self.last_path.poses) >= 2:
-            path_deviation_distance = self.path_deviation(self.last_odom, self.last_path)
-            self.deviation_sum += path_deviation_distance
-            self.deviation_max = max(self.deviation_max, path_deviation_distance)
+            dev = self.path_deviation(self.last_odom, self.last_path)
+            self.deviation_sum += dev
+            self.deviation_max = max(self.deviation_max, dev)
             self.deviation_n += 1
 
-        # 3) energia (cmd_vel változás)
+        # 3) energia
         if self.last_cmd is not None:
             robot_speed = float(self.last_cmd.linear.x)
             robot_turn_speed = float(self.last_cmd.angular.z)
-            
+
             if self.previous_robot_speed is not None and self.previous_robot_turn_speed is not None:
-                linear_speed_change = abs(robot_speed - self.previous_robot_speed)
-                angular_speed_change = abs(robot_turn_speed - self.previous_robot_turn_speed)
-                self.energy_sum += (linear_speed_change + self.turn_weight * angular_speed_change)
-                
+                dv = abs(robot_speed - self.previous_robot_speed)
+                dw = abs(robot_turn_speed - self.previous_robot_turn_speed)
+                self.energy_sum += (dv + self.turn_weight * dw)
+
             self.previous_robot_speed = robot_speed
             self.previous_robot_turn_speed = robot_turn_speed
 
-        # 4) vége feltétel: stop_time_s ideje nem mozgott
+        # 4) vége feltétel
         now = self.now_sec()
-        if self.last_move_time is not None and (now - self.last_move_time) > self.stop_time_s:
-            self.finish_run()
+        stopped_long_enough = (self.last_move_time is not None and (now - self.last_move_time) > self.stop_time_s)
+
+        if not stopped_long_enough:
+            return
+
+        # ha kell cél, akkor csak cél közelében zárunk
+        if self.need_goal_to_finish:
+            if self.last_path is None or len(self.last_path.poses) < 1:
+                # nincs path -> nem tudjuk a célt, inkább NE zárjuk le
+                return
+
+            dist_goal = self.distance_to_goal(self.last_odom, self.last_path)
+            if dist_goal > self.goal_tolerance:
+                # áll, de még nincs közel a célhoz -> valószínű "beragadt", de most nem akarunk hamis befejezést
+                return
+
+        self.finish_run()
 
     def min_range(self, scan: LaserScan) -> float:
         ranges = np.array(scan.ranges, dtype=np.float32)
@@ -191,42 +215,48 @@ class MetricsLog(Node):
         robot_x = float(odom.pose.pose.position.x)
         robot_y = float(odom.pose.pose.position.y)
 
-        best = 1e18
-        for path_point in path.poses:
-            path_point_x = float(path_point.pose.position.x)
-            path_point_y = float(path_point.pose.position.y)
-            squared_distance = (path_point_x - robot_x) ** 2 + (path_point_y - robot_y) ** 2
-            
-            if squared_distance < best:
-                best = squared_distance
-                
-        return float(math.sqrt(best)) if best < 1e18 else 0.0
+        best_sq = 1e18
+        for p in path.poses:
+            px = float(p.pose.position.x)
+            py = float(p.pose.position.y)
+            sq = (px - robot_x) ** 2 + (py - robot_y) ** 2
+            if sq < best_sq:
+                best_sq = sq
+
+        return float(math.sqrt(best_sq)) if best_sq < 1e18 else 0.0
+
+    def distance_to_goal(self, odom: Odometry, path: Path) -> float:
+        robot_x = float(odom.pose.pose.position.x)
+        robot_y = float(odom.pose.pose.position.y)
+
+        goal_x = float(path.poses[-1].pose.position.x)
+        goal_y = float(path.poses[-1].pose.position.y)
+
+        return float(math.hypot(goal_x - robot_x, goal_y - robot_y))
 
     def finish_run(self):
         self.finished = True
 
         end_time = self.now_sec()
         exec_time = float(end_time - self.start_time) if self.start_time is not None else 0.0
-
         mean_dev = (self.deviation_sum / self.deviation_n) if self.deviation_n > 0 else 0.0
 
         # mentés CSV-be
         out_path = os.path.join(self.csv_dir, "osszes_eredmeny.csv")
-        if not os.path.exists(out_path):
+        write_header = (not os.path.exists(out_path))
+
+        if write_header:
             with open(out_path, "w", newline="") as f:
                 w = csv.writer(f)
-                w.writerow(["ido_belyeg", "modszer", "palya", "vegrehajtasi_ido (sec)", "utkozesek_szama",
-                            "atlagos_eltetes (meter)", "max_eltetes (meter)", "sebessegvaltozas_energia"])
+                w.writerow(["ido_belyeg", "modszer", "palya","vegrehajtasi_ido (sec)", "utkozesek_szama", "atlagos_eltetes (meter)", 
+                            "max_eltetes (meter)", "sebessegvaltozas_energia"])
 
         with open(out_path, "a", newline="") as f:
             w = csv.writer(f)
-            w.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), self.modszer, self.palya,f"{exec_time:.3f}",
-                        int(self.collision_count), f"{mean_dev:.4f}", f"{self.deviation_max:.4f}", f"{self.energy_sum:.4f}",])
+            w.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), self.modszer,self.palya, f"{exec_time:.3f}", int(self.collision_count),
+                        f"{mean_dev:.4f}", f"{self.deviation_max:.4f}",f"{self.energy_sum:.4f}"])
 
-        self.get_logger().info(
-            f"[METRICS END] time={exec_time:.2f}s coll={self.collision_count} "
-            f"dev_mean={mean_dev:.3f} dev_max={self.deviation_max:.3f} energy={self.energy_sum:.3f}"
-        )
+        self.get_logger().info(f"[METRICS END] time={exec_time:.2f}s coll={self.collision_count} dev_mean={mean_dev:.3f} dev_max={self.deviation_max:.3f} energy={self.energy_sum:.3f}")
 
         rclpy.shutdown()
 

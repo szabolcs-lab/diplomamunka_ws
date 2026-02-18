@@ -241,6 +241,12 @@ class PPOTrainer(Node):
         # epizód vége
         if done:
             self.finish_and_exit(reason, distance_goal, min_r)
+            
+        if self.step_count % 20 == 0:
+            self.get_logger().info(
+                f"dist_goal={distance_goal:.3f} tol={self.goal_tolerance:.3f} "
+                f"robot=({self.last_odom.pose.pose.position.x:.2f},{self.last_odom.pose.pose.position.y:.2f}) "
+                f"path_goal=({self.last_path.poses[-1].pose.position.x:.2f},{self.last_path.poses[-1].pose.position.y:.2f})")
 
     # Episode begin/end
     def pick_params_for_episode(self):

@@ -16,7 +16,7 @@ class PPOTraining:
         self.gamma = 0.99
         self.gae_lambda = 0.95
         self.clip = 0.2
-        self.k_epochs = 4
+        self.k_epochs = 4 #4 ez volt a kiindulás, 6 
 
         # Loss súlyok
         self.entropy_coef = 0.01
