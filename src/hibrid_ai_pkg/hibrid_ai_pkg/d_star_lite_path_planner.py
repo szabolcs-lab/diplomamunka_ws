@@ -23,7 +23,7 @@ class DStarLitePathPlanner(Node):
         self.resample_step = self.get_parameter('resample_step').get_parameter_value().double_value
 
         self.start = (199, 0)
-        self.goal = (0, 199)
+        self.goal = (4, 197) #(0, 199)
         self.grid = None
         self.planner = None
         self.last_path_msg = None
