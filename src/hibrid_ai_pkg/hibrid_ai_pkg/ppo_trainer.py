@@ -93,7 +93,7 @@ class PPOTrainer(Node):
                                                                    "celtol_valo_tavolsag (m)", "legkozelebbi_akadaly_tavolsag", 
                                                                    "ossz_haladas", "kapott_pontszam", "modell_fajl"])
         
-        self._init_csv_if_needed(self.best_metric_path, header=["futas_azonosito", "lepesek_szama", "befejezes_oka", "ossz_haladas", "kapott_pontszam", "forras_modell"])
+        self._init_csv_if_needed(self.best_metric_path, header=["futas_azonosito", "lepesek_szama", "befejezes_oka", "legkozelebbi_akadaly_tavolsag", "ossz_haladas", "kapott_pontszam", "forras_modell"])
 
         # bemenet cach
         self.last_odom = None
@@ -112,7 +112,8 @@ class PPOTrainer(Node):
         self.current_smooth = 0.0
 
         # PPO
-        self.state_dim = 4 + self.lidar_bins
+        #self.state_dim = 4 + self.lidar_bins
+        self.state_dim = 5 + self.lidar_bins
         self.action_dim = 2
         self.trainer = PPOTraining(state_dim=self.state_dim, action_dim=self.action_dim)
 
@@ -155,6 +156,7 @@ class PPOTrainer(Node):
     def _init_csv_if_needed(self, path: str, header: list):
         if os.path.exists(path):
             return
+        
         with open(path, "w", newline="") as f:
             w = csv.writer(f)
             w.writerow(header)
@@ -169,6 +171,7 @@ class PPOTrainer(Node):
         if not os.path.exists(self.best_model_path):
             self.get_logger().info("[LOAD] best_latest.pth nincs, indul nulláról.")
             return
+        
         try:
             # PPOTraining/ActorCriticNetwork ezt használja betöltéshez
             self.trainer.policy.save_file = self.best_model_path
@@ -178,6 +181,7 @@ class PPOTrainer(Node):
             self.trainer.copy_policy()
 
             self.get_logger().info(f"[LOAD] Betöltve: {self.best_model_path}")
+            
         except Exception as e:
             self.get_logger().error(f"[LOAD] Betöltés hiba: {e}")
 
@@ -185,6 +189,7 @@ class PPOTrainer(Node):
     def on_timer(self):
         if self.last_odom is None or self.last_scan is None or self.last_path is None:
             return
+        
         if len(self.last_path.poses) < 2:
             return
 
@@ -196,12 +201,14 @@ class PPOTrainer(Node):
         state, info = self.build_state(self.last_odom, self.last_scan, self.last_path)
         distance_goal = info["distance_goal"]
         min_r = info["min_range"]
+        cross_track_error = info["cross_track_error"]
 
         # progress / delta (előbb számolom, utána frissítem prev-et!)
         delta_distance_goal = 0.0
         if self.prev_distance_goal is not None:
             delta_distance_goal = (self.prev_distance_goal - distance_goal)
             self.progress_sum += delta_distance_goal
+            
         self.prev_distance_goal = distance_goal
 
         can_be_goal = (self.step_count >= self.min_steps_for_goal)
@@ -209,13 +216,16 @@ class PPOTrainer(Node):
         # done
         if can_be_goal and distance_goal < self.goal_tolerance:
             reward, done, reason = 50.0, True, "goal"
+            
         elif min_r < self.collision_distance:
             reward, done, reason = -50.0, True, "collision"
+            
         elif self.step_count >= self.max_steps:
             reward, done, reason = -10.0, True, "timeout"
+            
         else:
             # egyszerű reward
-            reward, done, reason = (2.0 * delta_distance_goal - 0.01), False, "running"
+            reward, done, reason = (2.0 * delta_distance_goal - 0.01 - 0.2 * cross_track_error), False, "running"
 
         # store
         if self.train_mode:
@@ -282,25 +292,19 @@ class PPOTrainer(Node):
         score = self._score(reason, self.progress_sum, self.step_count)
 
         # run metrics (1 sor)
-        self._append_csv(self.run_metrics_path, [
-            self.step_count, reason, f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}",
-            f"{dist_goal:.4f}", f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}",
-        ])
+        self._append_csv(self.run_metrics_path, [self.step_count, reason, f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}", f"{dist_goal:.4f}", 
+                                                 f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}"])
 
         # global metrics (1 sor)
-        self._append_csv(self.global_metrics_path, [
-            os.path.basename(self.run_dir), self.step_count, reason,
-            f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}", f"{dist_goal:.4f}",
-            f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}", model_path,
-        ])
+        self._append_csv(self.global_metrics_path, [os.path.basename(self.run_dir), self.step_count, reason, f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}", 
+                                                    f"{dist_goal:.4f}", f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}", model_path])
 
         # best frissítés (ha van mentett modell)
         if model_path and os.path.exists(model_path):
-            self._maybe_update_best(reason, self.step_count, self.progress_sum, score, model_path)
+            self._maybe_update_best(reason, self.step_count, min_range, self.progress_sum, score, model_path)
 
-        self.get_logger().info(
-            f"[EP END] steps={self.step_count} reason={reason} progress={self.progress_sum:.3f} score={score:.2f}"
-        )
+
+        self.get_logger().info(f"[EP END] steps={self.step_count} reason={reason} progress={self.progress_sum:.3f} score={score:.2f}")
         self.get_logger().info("Leáll (1 launch = 1 epizód).")
         rclpy.shutdown()
 
@@ -308,53 +312,80 @@ class PPOTrainer(Node):
         try:
             files = [f for f in os.listdir(self.run_dir) if f.endswith(".pth")]
             files = [f for f in files if f != "latest.pth"]
+            
             if not files:
                 return ""
+            
             files.sort(key=lambda x: os.path.getmtime(os.path.join(self.run_dir, x)))
+            
             return os.path.join(self.run_dir, files[-1])
+        
         except Exception:
             return ""
 
-    def _score(self, reason: str, progress: float, steps: int) -> float:
+    def _score(self, reason: str, progress: float, steps: int):
         # cél: goal legyen előny, collision nagy bünti
+        
         if reason == "goal":
             return 1000.0 + progress - 0.1 * steps
+        
         if reason == "collision":
             return -1000.0 + progress - 0.1 * steps
+        
         # timeout / egyéb
         return progress - 0.1 * steps
 
-    def _read_best_score(self) -> float:
-        # best_metric.csv utolsó sorának score-ja
-        try:
-            if not os.path.exists(self.best_metric_path):
-                return -1e18
-            with open(self.best_metric_path, "r", newline="") as f:
-                rows = list(csv.reader(f))
-            if len(rows) < 2:
-                return -1e18
-            last = rows[-1]
-            # header: run,steps,reason,progress,score,src_model
-            return float(last[4])
-        except Exception:
-            return -1e18
+    def _read_best_row(self):
+        """
+        Visszaadja a best_metrics.csv utolsó (legjobbként eltárolt) sorát.
+        Ha még nincs best, None.
+        """
+        if not os.path.exists(self.best_metric_path):
+            return None
 
-    def _maybe_update_best(self, reason: str, steps: int, progress: float, score: float, model_path: str):
-        best_score = self._read_best_score()
+        with open(self.best_metric_path, "r", newline="") as f:
+            rows = list(csv.reader(f))
 
-        if score <= best_score:
+        if len(rows) < 2:   # csak header van
+            return None
+
+        return rows[-1]
+        
+    def _maybe_update_best(self,reason: str, steps: int, min_range: float, progress: float, score: float,model_path: str):
+        #csak GOAL-ból választunk best-et
+        if reason != "goal":
             return
 
-        # best_latest.pth = ez a modell
-        try:
-            shutil.copyfile(model_path, self.best_model_path)
-            self._append_csv(
-                self.best_metric_path,
-                [os.path.basename(self.run_dir), steps, reason, f"{progress:.4f}", f"{score:.4f}", model_path]
-            )
-            self.get_logger().info(f"[BEST] Frissült! score={score:.2f} -> {self.best_model_path}")
-        except Exception as e:
-            self.get_logger().error(f"[BEST] mentés hiba: {e}")
+        best_row = self._read_best_row()
+
+        # Ha még nincs best: ez az első goal - automatikusan best
+        if best_row is None:
+            self.save_as_best(steps, min_range, progress, score, model_path)
+            return
+
+        # best_row mezők a header alapján:
+        # ["futas_azonosito","lepesek_szama","befejezes_oka","legkozelebbi_akadaly_tavolsag","ossz_haladas","kapott_pontszam","forras_modell"]
+        best_steps = int(best_row[1])
+        best_min_range = float(best_row[3])
+
+        # kevesebb lépés = jobb
+        if steps < best_steps:
+            self.save_as_best(steps, min_range, progress, score, model_path)
+            return
+
+        # ha több lépés, nem jobb
+        if steps > best_steps:
+            return
+
+        # döntetlen: nagyobb min_range = jobb
+        if min_range > best_min_range:
+            self.save_as_best(steps, min_range, progress, score, model_path)
+            return
+
+        # ha min_range se jobb, akkor nem frissítünk
+        return
+
+
 
     # State
     def build_state(self, odom: Odometry, scan: LaserScan, path: Path):
@@ -391,10 +422,45 @@ class PPOTrainer(Node):
                     min_distance_i = self.lidar_max_range
 
                 lidar_vector.append(min_distance_i / self.lidar_max_range)
-
-        state = np.array([distance_goal, robot_speed, robot_turn_speed, float(min_range)] + lidar_vector,dtype=np.float32)
-        info = {"distance_goal": float(distance_goal), "min_range": float(min_range)}
+                
+        cross_track_error = self.calc_cross_track_error(odom, path)
+                
+        state = np.array([distance_goal, robot_speed, robot_turn_speed, float(min_range), cross_track_error] + lidar_vector,dtype=np.float32)
+        info = {"distance_goal": float(distance_goal), "min_range": float(min_range), "cross_track_error": float(cross_track_error)}
+        
         return state, info
+    
+    def calc_cross_track_error(self, odom: Odometry, path: Path) -> float:
+        """Távolság a robot és a Path legközelebbi pontja között (méterben)."""
+        
+        robot_x = float(odom.pose.pose.position.x)
+        robot_y = float(odom.pose.pose.position.y)
+
+        if path is None or len(path.poses) == 0:
+            return 0.0
+
+        min_dist = 1e9
+        for ps in path.poses:
+            px = float(ps.pose.position.x)
+            py = float(ps.pose.position.y)
+            d = math.hypot(px - robot_x, py - robot_y)
+            
+            if d < min_dist:
+                min_dist = d
+
+        return float(min_dist)
+    
+    def save_as_best(self, steps: int, min_range: float, progress: float, score: float, model_path: str):
+        try:
+            shutil.copyfile(model_path, self.best_model_path)
+
+            self._append_csv(self.best_metric_path, [os.path.basename(self.run_dir), steps,"goal", f"{min_range:.4f}", f"{progress:.4f}", f"{score:.4f}", model_path])
+
+            self.get_logger().info(f"[BEST] Frissült! steps={steps} min_range={min_range:.3f} -> {self.best_model_path}")
+            
+        except Exception as e:
+            self.get_logger().error(f"[BEST] mentés hiba: {e}")
+
 
 
 def main(args=None):
