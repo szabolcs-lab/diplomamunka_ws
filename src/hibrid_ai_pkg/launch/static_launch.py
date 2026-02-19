@@ -63,7 +63,7 @@ def generate_launch_description():
             'control_hz': 10.0,
 
             # done feltételek productban nem létfontosságúak, de maradhatnak
-            'max_steps': 1400,
+            'max_steps': 1500, #1400
             'goal_tolerance': 0.8,
             'collision_distance': 0.18,
             'min_steps_for_goal': 50,
@@ -144,12 +144,16 @@ def generate_launch_description():
         name='metrics_log',
         output='screen',
         parameters=[{
-            'method_name': 'hibrid_ppo_d_star_liet_nav2_static',
+            'modszer': 'hibrid_d_star_lite_ppo_nav2_static',      
+            'palya': LaunchConfiguration('map_file'), 
             'odom_topic': '/odom',
             'cmd_vel_topic': '/cmd_vel',
             'scan_topic': '/scan',
-            'path_topic': '/planned_path_smoother',
-            'csv_dir': './metrics_runs'
+            'path_topic': '/planned_path_dilated',  
+            'csv_dir': './metrics_runs',
+            'need_goal_to_finish': False, 
+            'stop_speed_eps': 0.05,
+            'stop_time_s': 1.5
         }]
     )
 

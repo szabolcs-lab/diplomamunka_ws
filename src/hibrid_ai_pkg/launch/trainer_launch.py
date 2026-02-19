@@ -60,7 +60,7 @@ def generate_launch_description():
         parameters=[{
             'train_mode': True,
             'control_hz': 10.0,
-            'max_steps': 1400, #1400, 1800
+            'max_steps': 1800, #1400, 1800
 
             'goal_tolerance': 0.7, #0.8, 0,5, 0,6
             'collision_distance': 0.18,

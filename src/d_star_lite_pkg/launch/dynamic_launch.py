@@ -90,18 +90,31 @@ def generate_launch_description():
         output='screen'
     )
     
+    gz_bridge_lidar = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='bridge_lidar',
+        arguments=['/lidar@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan'],
+        remappings=[('/lidar', '/scan')],
+        output='screen'
+    )
+    
     metrics_logger = Node(
         package='metrics_pkg',
         executable='metrics_log',
         name='metrics_log',
         output='screen',
         parameters=[{
-            'method_name': 'd_star_lite_nav2_dynamic',          # itt változik módszerenként
+            'modszer': 'd_star_lite_nav2_dynamic',      
+            'palya': LaunchConfiguration('map_file'), 
             'odom_topic': '/odom',
             'cmd_vel_topic': '/cmd_vel',
             'scan_topic': '/scan',
-            'path_topic': '/planned_path_dilated',        # itt lehet eltérés pkg-nként
-            'csv_dir': './metrics_runs'           # közös mappa
+            'path_topic': '/planned_path_dilated',  
+            'csv_dir': './metrics_runs',
+            'need_goal_to_finish': False, 
+            'stop_speed_eps': 0.05,
+            'stop_time_s': 1.5
         }]
     )
     
@@ -114,6 +127,7 @@ def generate_launch_description():
         nav2_bringup,
         gz_cmd_vel_bridge,
         gz_bridge_odom,
+        gz_bridge_lidar,
         tf_broadcaster,
         metrics_logger
     ])

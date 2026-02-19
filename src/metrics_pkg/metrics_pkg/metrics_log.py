@@ -15,7 +15,7 @@ from geometry_msgs.msg import Twist
 class MetricsLog(Node):
     """
     Start: amikor először megmozdul a robot (/cmd_vel nem 0)
-    End (javasolt): cél közelében + stop_time_s ideje áll (cmd_vel ~ 0)
+    End: cél közelében + stop_time_s ideje áll (cmd_vel ~ 0)
     - végrehajtási idő
     - ütközések száma (min_range < collision_distance, élváltással számolva)
     - path deviation (robot - legközelebbi path pont)
