@@ -23,7 +23,7 @@ class DynamicObstacleSpawner(Node):
 
         # paraméterek beolvasása
         self.min_delay = self.declare_parameter('min_delay', 17.0).value
-        self.max_delay = self.declare_parameter('max_delay', 24.0).value
+        self.max_delay = self.declare_parameter('max_delay', 20.0).value
         self.world_name = self.declare_parameter('world_name', 'custom_world').value
         self.obstacle_name = self.declare_parameter('obstacle_name', 'dynamic_obstacle').value
         self.obstacle_z = self.declare_parameter('obstacle_z', 0.0).value

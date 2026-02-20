@@ -1,7 +1,7 @@
 dynamic_obstacle:
   ros__parameters:
     min_delay: 17.0
-    max_delay: 24.0
+    max_delay: 20.0
 
     world_name: "custom_world"
 
