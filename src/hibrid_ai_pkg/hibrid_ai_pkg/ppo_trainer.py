@@ -12,6 +12,10 @@ from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32MultiArray
 
+from geometry_msgs.msg import PointStamped
+from tf2_ros import Buffer, TransformListener
+from tf2_geometry_msgs import do_transform_point
+
 import torch
 
 from .ppo_training import PPOTraining
@@ -136,6 +140,9 @@ class PPOTrainer(Node):
 
         period = 1.0 / max(1e-6, self.control_hz)
         self.timer = self.create_timer(period, self.on_timer)
+        
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         mode = "TRAIN" if self.train_mode else "EVAL"
         self.get_logger().info(f"PPOTrainer indul. mode={mode}")
@@ -395,14 +402,20 @@ class PPOTrainer(Node):
 
     # State
     def build_state(self, odom: Odometry, scan: LaserScan, path: Path):
-        robot_x = odom.pose.pose.position.x
-        robot_y = odom.pose.pose.position.y
+        # robot pozíció map-ben (mert a path is map-ben van!)
+        robot_xy = self.robot_xy_in_map(odom)
+        if robot_xy[0] is None:
+            
+            # nincs TF -> ne számolj hülyeséget
+            return None, None
+
+        robot_x, robot_y = robot_xy
 
         robot_speed = float(odom.twist.twist.linear.x)
         robot_turn_speed = float(odom.twist.twist.angular.z)
 
-        goal_x = path.poses[-1].pose.position.x
-        goal_y = path.poses[-1].pose.position.y
+        goal_x = float(path.poses[-1].pose.position.x)
+        goal_y = float(path.poses[-1].pose.position.y)
         distance_goal = math.hypot(goal_x - robot_x, goal_y - robot_y)
 
         ranges = np.array(scan.ranges, dtype=np.float32)
@@ -429,28 +442,24 @@ class PPOTrainer(Node):
 
                 lidar_vector.append(min_distance_i / self.lidar_max_range)
                 
-        cross_track_error = self.calc_cross_track_error(odom, path)
+        cross_track_error = self.calc_cross_track_error_map_xy(robot_x, robot_y, path)
                 
         state = np.array([distance_goal, robot_speed, robot_turn_speed, float(min_range), cross_track_error] + lidar_vector,dtype=np.float32)
         info = {"distance_goal": float(distance_goal), "min_range": float(min_range), "cross_track_error": float(cross_track_error)}
         
         return state, info
     
-    def calc_cross_track_error(self, odom: Odometry, path: Path) -> float:
-        """Távolság a robot és a Path legközelebbi pontja között (méterben)."""
-        
-        robot_x = float(odom.pose.pose.position.x)
-        robot_y = float(odom.pose.pose.position.y)
+    def calc_cross_track_error_map_xy(self, robot_x: float, robot_y: float, path: Path):
+        """Távolság a robot (map) és a Path legközelebbi pontja között (méterben)."""
 
         if path is None or len(path.poses) == 0:
             return 0.0
 
         min_dist = 1e9
         for ps in path.poses:
-            px = float(ps.pose.position.x)
-            py = float(ps.pose.position.y)
+            px = float(ps.pose.position.x)  # map
+            py = float(ps.pose.position.y)  # map
             d = math.hypot(px - robot_x, py - robot_y)
-            
             if d < min_dist:
                 min_dist = d
 
@@ -466,6 +475,26 @@ class PPOTrainer(Node):
             
         except Exception as e:
             self.get_logger().error(f"[BEST] mentés hiba: {e}")
+            
+    def robot_xy_in_map(self, odom: Odometry):
+        """
+        Odomból (frame: odom) robot pozícióját átszámolja map frame-be TF2-vel.
+        Vissza: (x_map, y_map) vagy (None, None) ha nincs TF.
+        """
+        p = PointStamped()
+        p.header.frame_id = odom.header.frame_id  # várhatóan "odom"
+        p.header.stamp = odom.header.stamp
+        p.point.x = float(odom.pose.pose.position.x)
+        p.point.y = float(odom.pose.pose.position.y)
+        p.point.z = 0.0
+
+        try:
+            tf = self.tf_buffer.lookup_transform("map", p.header.frame_id, rclpy.time.Time())
+            p_map = do_transform_point(p, tf)
+            return float(p_map.point.x), float(p_map.point.y)
+
+        except Exception:
+            return None, None
 
 
 

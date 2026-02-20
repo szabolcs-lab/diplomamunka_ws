@@ -26,7 +26,7 @@ def generate_launch_description():
         executable='map_publication',
         name='map_publication',
         output='screen',
-        parameters=[map_publication_parameter_file, {'map_file': full_map_path}]
+        parameters=[map_publication_parameter_file, {'map_file': full_map_path}, {'use_sim_time': True}]
     )
 
     # 2) D* Lite -> /planned_path_dilated
@@ -35,7 +35,7 @@ def generate_launch_description():
         executable='d_star_lite_path_planner',
         name='d_star_lite_path_planner',
         output='screen',
-        parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}],
+        parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}, {'use_sim_time': True}],
     )
 
     # 3) Path finomító: /planned_path_dilated -> /planned_path_refined
@@ -47,7 +47,8 @@ def generate_launch_description():
         parameters=[{
             'path_in': '/planned_path_dilated',
             'path_out': '/planned_path_smoother',
-            'params_topic': '/smoother_params'
+            'params_topic': '/smoother_params',
+            'use_sim_time': True
         }]
     )
 
@@ -98,7 +99,7 @@ def generate_launch_description():
         executable='tf_broadcaster',
         name='tf_broadcaster',
         output='screen',
-        parameters=[{'odom_topic': '/odom'}]
+        parameters=[{'odom_topic': '/odom'},{'use_sim_time': True}]
     )
 
     # 7) ROS /cmd_vel -> Ignition /cmd_vel
@@ -130,6 +131,14 @@ def generate_launch_description():
         output='screen'
     )
     
+    gz_clock_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='gz_clock_bridge',
+        output='screen',
+        arguments=['/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock']
+    )
+    
     rviz = Node(
         package='rviz2',
         executable='rviz2',
@@ -147,6 +156,7 @@ def generate_launch_description():
         nav2_bringup,
         gz_cmd_vel_bridge,
         gz_bridge_odom,
+        gz_clock_bridge,
         tf_broadcaster,
         gz_bridge_lidar,
     ])

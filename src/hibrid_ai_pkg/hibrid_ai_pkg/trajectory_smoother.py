@@ -71,11 +71,11 @@ class TrajectorySmoother(Node):
 
         pts = [(p.pose.position.x, p.pose.position.y) for p in msg.poses]
 
-        # 1) offset ráhúzása
+        # offset ráhúzása
         if abs(self.offset_m) > 1e-6:
             pts = self.apply_offset(pts, self.offset_m)
 
-        # 2) simítás (0/1/2 iter)
+        # simítás (0/1/2 iter)
         iters = 0
         if self.smooth_strength < 0.33:
             iters = 0
@@ -87,7 +87,7 @@ class TrajectorySmoother(Node):
         if iters > 0:
             pts = self.chaikin_smooth(pts, iters)
 
-        # 3) vissza Path üzenetbe
+        # vissza Path üzenetbe
         out = Path()
         out.header = msg.header
 
@@ -99,12 +99,17 @@ class TrajectorySmoother(Node):
             ps.pose.position.z = 0.0
             ps.pose.orientation.w = 1.0
             out.poses.append(ps)
+         
+        #use_sim_time miatt tettem be!    
+        now = self.get_clock().now().to_msg()
+        out.header.stamp = now
+        for p in out.poses:
+            p.header.stamp = now
 
         self.pub_path.publish(out)
 
     def apply_offset(self, pts, offset_m: float):
         """
-        Egyszerű ötlet:
         - minden ponthoz becsüljük a tangens irányt (előző-következő)
         - ebből normált számolunk (balra)
         - pontot eltoljuk normál irányba
