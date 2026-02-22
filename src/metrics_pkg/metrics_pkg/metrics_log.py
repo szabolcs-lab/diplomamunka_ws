@@ -11,6 +11,11 @@ from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 
+from geometry_msgs.msg import PointStamped
+from tf2_ros import Buffer, TransformListener
+from tf2_geometry_msgs import do_transform_point
+import rclpy.time
+
 
 class MetricsLog(Node):
     """
@@ -102,6 +107,9 @@ class MetricsLog(Node):
         self.create_subscription(Twist, self.cmd_vel_topic, self.cmd_callback, 20)
 
         self.timer = self.create_timer(0.1, self.on_timer)
+        
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.get_logger().info(f"MetricsLog indul: modszer={self.modszer}, palya={self.palya}")
         self.get_logger().info(f"Start: {self.cmd_vel_topic} mozgás")
@@ -153,6 +161,10 @@ class MetricsLog(Node):
 
         if self.last_odom is None or self.last_scan is None:
             return
+        
+        rx, ry = self.robot_xy_in_map(self.last_odom)
+        if rx is None:
+            return
 
         # 1) ütközés számlálás
         min_range = self.min_range(self.last_scan)
@@ -197,7 +209,7 @@ class MetricsLog(Node):
 
             dist_goal = self.distance_to_goal(self.last_odom, self.last_path)
             if dist_goal > self.goal_tolerance:
-                # áll, de még nincs közel a célhoz -> valószínű "beragadt", de most nem akarunk hamis befejezést
+                # áll, de még nincs közel a célhoz - valószínű "beragadt", de most nem akarunk hamis befejezést
                 return
 
         self.finish_run()
@@ -212,13 +224,14 @@ class MetricsLog(Node):
         return float(np.min(ranges))
 
     def path_deviation(self, odom: Odometry, path: Path) -> float:
-        robot_x = float(odom.pose.pose.position.x)
-        robot_y = float(odom.pose.pose.position.y)
+        robot_x, robot_y = self.robot_xy_in_map(odom)
+        if robot_x is None:
+            return 0.0  # vagy return None és akkor ne számold
 
         best_sq = 1e18
         for p in path.poses:
-            px = float(p.pose.position.x)
-            py = float(p.pose.position.y)
+            px = float(p.pose.position.x)  # map
+            py = float(p.pose.position.y)  # map
             sq = (px - robot_x) ** 2 + (py - robot_y) ** 2
             if sq < best_sq:
                 best_sq = sq
@@ -226,8 +239,9 @@ class MetricsLog(Node):
         return float(math.sqrt(best_sq)) if best_sq < 1e18 else 0.0
 
     def distance_to_goal(self, odom: Odometry, path: Path) -> float:
-        robot_x = float(odom.pose.pose.position.x)
-        robot_y = float(odom.pose.pose.position.y)
+        robot_x, robot_y = self.robot_xy_in_map(odom)
+        if robot_x is None:
+            return 999.0  # TF nélkül ne zárjon le tévesen
 
         goal_x = float(path.poses[-1].pose.position.x)
         goal_y = float(path.poses[-1].pose.position.y)
@@ -259,6 +273,21 @@ class MetricsLog(Node):
         self.get_logger().info(f"[METRICS END] time={exec_time:.2f}s coll={self.collision_count} dev_mean={mean_dev:.3f} dev_max={self.deviation_max:.3f} energy={self.energy_sum:.3f}")
 
         rclpy.shutdown()
+        
+    def robot_xy_in_map(self, odom: Odometry):
+        p = PointStamped()
+        p.header.frame_id = odom.header.frame_id  # várhatóan "odom"
+        p.header.stamp = odom.header.stamp
+        p.point.x = float(odom.pose.pose.position.x)
+        p.point.y = float(odom.pose.pose.position.y)
+        p.point.z = 0.0
+
+        try:
+            tf = self.tf_buffer.lookup_transform("map", p.header.frame_id, rclpy.time.Time())
+            p_map = do_transform_point(p, tf)
+            return float(p_map.point.x), float(p_map.point.y)
+        except Exception:
+            return None, None
 
 
 def main(args=None):

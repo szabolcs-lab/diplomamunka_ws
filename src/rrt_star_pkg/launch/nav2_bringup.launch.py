@@ -16,10 +16,7 @@ def generate_launch_description():
         executable='nav2_path',
         name='nav2_path_client',
         output='screen',
-        parameters=[{
-            'path_topic': 'planned_path_dilated'
-        }]
-    )
+        parameters=[{'path_topic': 'planned_path_dilated', 'use_sim_time': True}])
 
     # 2) Nav2 controller_server
     controller_server = Node(

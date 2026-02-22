@@ -58,7 +58,7 @@ def generate_launch_description():
             'train_mode': False,
             'control_hz': 10.0,
 
-            'max_steps': 1800,
+            'max_steps': 2600,
             'goal_tolerance': 0.8,
             'collision_distance': 0.18,
             'min_steps_for_goal': 50,

@@ -16,6 +16,8 @@ from geometry_msgs.msg import PointStamped
 from tf2_ros import Buffer, TransformListener
 from tf2_geometry_msgs import do_transform_point
 
+from rclpy.duration import Duration
+
 import torch
 
 from .ppo_training import PPOTraining
@@ -206,6 +208,10 @@ class PPOTrainer(Node):
 
         # state
         state, info = self.build_state(self.last_odom, self.last_scan, self.last_path)
+        
+        if state is None or info is None:
+            return
+        
         distance_goal = info["distance_goal"]
         min_r = info["min_range"]
         cross_track_error = info["cross_track_error"]
@@ -228,7 +234,11 @@ class PPOTrainer(Node):
             reward, done, reason = -50.0, True, "collision"
             
         elif self.step_count >= self.max_steps:
-            reward, done, reason = -10.0, True, "timeout"
+            # ha már közel a célhoz, adjunk még időt
+            if distance_goal < 2.0:
+                reward, done, reason = -0.01, False, "running"   # még fut
+            else:
+                reward, done, reason = -10.0, True, "timeout"
             
         else:
             # egyszerű reward
@@ -250,9 +260,10 @@ class PPOTrainer(Node):
             self.finish_and_exit(reason, distance_goal, min_r)
             
         if self.step_count % 20 == 0:
+            robot_x, robot_y = self.robot_xy_in_map(self.last_odom)
             self.get_logger().info(
                 f"dist_goal={distance_goal:.3f} tol={self.goal_tolerance:.3f} "
-                f"robot=({self.last_odom.pose.pose.position.x:.2f},{self.last_odom.pose.pose.position.y:.2f}) "
+                f"robot_map=({robot_x:.2f},{robot_y:.2f}) "
                 f"path_goal=({self.last_path.poses[-1].pose.position.x:.2f},{self.last_path.poses[-1].pose.position.y:.2f})")
 
     # Episode begin/end
@@ -478,22 +489,26 @@ class PPOTrainer(Node):
             
     def robot_xy_in_map(self, odom: Odometry):
         """
-        Odomból (frame: odom) robot pozícióját átszámolja map frame-be TF2-vel.
+        Odomból robot pozícióját átszámolja map frame-be TF2-vel.
         Vissza: (x_map, y_map) vagy (None, None) ha nincs TF.
         """
         p = PointStamped()
-        p.header.frame_id = odom.header.frame_id  # várhatóan "odom"
-        p.header.stamp = odom.header.stamp
+        p.header.frame_id = odom.header.frame_id  # "odom"
+        now = self.get_clock().now()
+        p.header.stamp = now.to_msg()
+
         p.point.x = float(odom.pose.pose.position.x)
         p.point.y = float(odom.pose.pose.position.y)
         p.point.z = 0.0
 
         try:
-            tf = self.tf_buffer.lookup_transform("map", p.header.frame_id, rclpy.time.Time())
+            tf = self.tf_buffer.lookup_transform("map",p.header.frame_id, now,timeout=Duration(seconds=0.2))
             p_map = do_transform_point(p, tf)
+            
             return float(p_map.point.x), float(p_map.point.y)
 
-        except Exception:
+        except Exception as e:
+            self.get_logger().warn(f"TF fail: {e}")
             return None, None
 
 

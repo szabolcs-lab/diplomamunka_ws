@@ -24,7 +24,7 @@ class DStarLitePathPlanner(Node):
         self.get_logger().info('D* Lite Path Planner node indul....')
         
         # paraméterek beolvasása yaml-ből launch fájlba, majd onnan a változókba
-        self.declare_parameter('margin', 0.5)
+        self.declare_parameter('margin', 0.6)
         self.declare_parameter('resample_step', 0.1)
         self.declare_parameter('map_file', 'unknown.csv')
         self.declare_parameter('scenario', 'static') 
@@ -63,7 +63,7 @@ class DStarLitePathPlanner(Node):
         self.path_debug_pub = self.create_publisher(Path, 'dstar_debug_path', qos) #ez az alapútvonal miatt kell, hogy lássuk
         
         # ez az időzítő republish_path hívja meg 0.5 másodpercenként
-        self.timer = self.create_timer(0.5, self.republish_path) 
+        self.timer = self.create_timer(3.0, self.republish_path) #0.5
         
         # metrics_log könytár létrehozása     
         self.package_dir = os.path.expanduser('~/diplomamunka_ws/src/d_star_lite_pkg')

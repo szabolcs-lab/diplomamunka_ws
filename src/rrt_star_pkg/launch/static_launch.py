@@ -25,7 +25,7 @@ def generate_launch_description():
         executable='map_publication',
         name='map_publication',
         output='screen',
-        parameters=[map_publication_parameter_file, {'map_file': full_map_path}]
+        parameters=[map_publication_parameter_file, {'map_file': full_map_path}, {'use_sim_time': True}]
     )
     
     # 2) RRT* path planner -> /planned_path_dilated (frame: map)
@@ -34,7 +34,7 @@ def generate_launch_description():
         executable='rrt_star_path_planner',
         name='rrt_star_path_planner',
         output='screen',
-        parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}]
+        parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}, {'use_sim_time': True}]
     )
     
     # 3) RViz
@@ -56,7 +56,7 @@ def generate_launch_description():
         executable='tf_broadcaster',
         name='tf_broadcaster',
         output='screen',
-        parameters=[{'odom_topic': '/odom'}]
+        parameters=[{'odom_topic': '/odom'}, {'use_sim_time': True}]
     )
     
     # 6) ROS /cmd_vel -> Ignition /cmd_vel
@@ -85,6 +85,14 @@ def generate_launch_description():
         arguments=['/lidar@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan'],
         remappings=[('/lidar', '/scan')],
         output='screen'
+    )
+    
+    gz_clock_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='gz_clock_bridge',
+        output='screen',
+        arguments=['/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock']
     )
     
     metrics_logger = Node(
@@ -116,6 +124,7 @@ def generate_launch_description():
         gz_cmd_vel_bridge,
         gz_bridge_odom,
         gz_bridge_lidar,
+        gz_clock_bridge,
         tf_broadcaster,
         metrics_logger
     ])

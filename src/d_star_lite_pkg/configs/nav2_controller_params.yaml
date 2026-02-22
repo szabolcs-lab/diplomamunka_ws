@@ -20,7 +20,7 @@ controller_server:
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.3 #0.05
+      xy_goal_tolerance: 0.3 #0.1
       yaw_goal_tolerance: 0.3 #0.1
       stateful: true
 
@@ -107,7 +107,7 @@ local_costmap:
       footprint: "[[0.25, 0.20], [0.25, -0.20], [-0.25, -0.20], [-0.25, 0.20]]"
       footprint_padding: 0.03 #0.02
 
-      # FONTOS: a te /map occupancy gridedet is vegye át
+      #/map occupancy gridedet is vegye át
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
 
       static_layer:
@@ -131,6 +131,6 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         enabled: true
-        inflation_radius: 0.40 #0.5
+        inflation_radius: 0.45 #0.5
         cost_scaling_factor: 5.0 #3.0
 

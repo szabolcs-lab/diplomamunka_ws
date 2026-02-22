@@ -16,7 +16,7 @@ class DStarLitePathPlanner(Node):
 
         self.get_logger().info('D* Lite Path Planner node indul....')
 
-        self.declare_parameter('margin', 0.5)
+        self.declare_parameter('margin', 0.65)
         self.declare_parameter('resample_step', 0.1)
 
         self.margin = self.get_parameter('margin').get_parameter_value().double_value
@@ -36,7 +36,7 @@ class DStarLitePathPlanner(Node):
         self.path_pub = self.create_publisher(Path, 'planned_path_dilated', qos)
         self.path_debug_pub = self.create_publisher(Path, 'dstar_debug_path', qos)
         
-        self.timer = self.create_timer(0.5, self.republish_path)
+        self.timer = self.create_timer(3.0, self.republish_path) #0.5
 
         self.get_logger().info('D* Lite Path Planner node inicializálva....')
 
