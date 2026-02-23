@@ -1,0 +1,6 @@
+futas_azonosito,lepesek_szama,befejezes_oka,eltolas_meterben,simitas,celtol_valo_tavolsag (m),legkozelebbi_akadaly_tavolsag,ossz_haladas,kapott_pontszam,modell_fajl
+run_20260223_113328,2214,goal,-0.0024,0.2500,0.5805,2.0909,27.4205,806.0205,./ppo_runs/grid_3/run_20260223_113328/latest_2026-02-23_113328.pth
+run_20260223_113728,2198,goal,0.0097,0.2500,0.5928,1.9087,27.1700,807.3700,./ppo_runs/grid_3/run_20260223_113728/latest_2026-02-23_113728.pth
+run_20260223_114128,2198,goal,0.0242,0.2500,0.5802,1.7503,27.2098,807.4098,./ppo_runs/grid_3/run_20260223_114128/latest_2026-02-23_114128.pth
+run_20260223_114601,2199,goal,0.0255,0.2500,0.5963,1.7597,27.4053,807.5053,./ppo_runs/grid_3/run_20260223_114601/ppo_ep_1.pth
+run_20260223_115443,2206,goal,0.0217,0.2500,0.5984,1.7995,27.4030,806.8030,./ppo_runs/grid_3/run_20260223_115443/latest_2026-02-23_115443.pth

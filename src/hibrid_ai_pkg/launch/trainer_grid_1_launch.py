@@ -63,7 +63,7 @@ def generate_launch_description():
             'control_hz': 10.0,
             'max_steps': 2600, #1400, 1800
 
-            'goal_tolerance': 0.7, #0.8, 0,5, 0,6
+            'goal_tolerance': 0.6, #0.8, 0.5, 0.6, 0.7
             'collision_distance': 0.18,
 
             'lidar_bins': 12,
@@ -73,7 +73,7 @@ def generate_launch_description():
             # óvatos eltolás limit
             'offset_limit': 0.05,
             
-            'smooth_max': 0.30, #0.25, 0.20 (ezzel rosszabb lett a lépés), 0,28 (ezzel rosszabb lett a lépés)
+            'smooth_max': 0.25, #0.25, 0.20 (ezzel rosszabb lett a lépés), 0,28 (ezzel rosszabb lett a lépés), 0.30
 
             'odom_topic': '/odom',
             'scan_topic': '/scan',
