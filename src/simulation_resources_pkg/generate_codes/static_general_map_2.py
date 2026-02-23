@@ -201,7 +201,7 @@ def main():
         {"name": "wall10",  "x": -5, "y": -7, "size_x": 6,   "size_y": 0.5, "yaw": 0},
 
         {"name": "wall11",  "x": 6,  "y": -8, "size_x": 0.5, "size_y": 5, "yaw": 0.4},
-        {"name": "wall12",  "x": 8,  "y": -3, "size_x": 0.5, "size_y": 7, "yaw": 0},
+        {"name": "wall12",  "x": 8,  "y": -2, "size_x": 0.5, "size_y": 6, "yaw": 0},
 
         {"name": "wall13", "x": 4, "y": -10, "size_x": 6, "size_y": 0.5, "yaw": 0},
         #{"name": "wall14", "x": 10, "y": -6, "size_x": 0.5, "size_y": 6, "yaw": 0},

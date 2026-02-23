@@ -37,7 +37,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(dynamic_obstacles_launch)
     )
     
-    # 3) D* Lite path planner -> /planned_path_dilated (frame: map)
+    # 3) D* Lite path planner - /planned_path_dilated (frame: map)
     #    Itt jön a lényeg: a node kódja 'map'-ra iratkozik fel,
     #    de mi átremappeljük neki 'map_dynamic'-ra.
     d_star_lite_path_planner = Node(
@@ -128,8 +128,7 @@ def generate_launch_description():
     
     return LaunchDescription([
         map_file_arg,
-        map_publication,
-        dynamic_obstacles,          
+        map_publication,         
         d_star_lite_path_planner,   
         rviz,
         nav2_bringup,
@@ -138,5 +137,6 @@ def generate_launch_description():
         gz_bridge_lidar,
         gz_clock_bridge,
         tf_broadcaster,
+        dynamic_obstacles,
         metrics_logger
     ])
