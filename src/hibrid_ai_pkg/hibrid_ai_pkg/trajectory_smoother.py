@@ -31,134 +31,131 @@ class TrajectorySmoother(Node):
         qos_path.reliability = ReliabilityPolicy.RELIABLE
         qos_path.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
-        self.sub_path = self.create_subscription(Path, "/planned_path_dilated", self.cb_path, qos_path)
+        self.path_subscriber = self.create_subscription(Path, "/planned_path_dilated", self.path_callback, qos_path)
 
         # params-ra elég sima QoS, mert a trainer amúgy is folyamatosan küldi
-        self.sub_params = self.create_subscription(Float32MultiArray, "/smoother_params", self.cb_params, 10)
+        self.params_subscriber = self.create_subscription(Float32MultiArray, "/smoother_params", self.params_callback, 10)
 
-        self.pub_path = self.create_publisher(Path, "/planned_path_smoother", qos_path)
+        self.path_publisher = self.create_publisher(Path, "/planned_path_smoother", qos_path)
 
-        self.get_logger().info(f"PathRefiner indul: /planned_path_dilated -> /planned_path_smoother")
+        self.get_logger().info(f"TrajectorySmoother elindult: /planned_path_dilated - /planned_path_smoother")
 
-    def cb_params(self, msg: Float32MultiArray):
+    def params_callback(self, msg: Float32MultiArray):
         # várjuk: [offset, smooth]
         if len(msg.data) < 2:
             return
 
         # clamp (biztonság)
-        off = float(msg.data[0])
-        sm = float(msg.data[1])
+        offset_m = float(msg.data[0])
+        smoothimg_strength = float(msg.data[1])
 
-        if off > 0.2:
-            off = 0.2
-        if off < -0.2:
-            off = -0.2
+        if offset_m > 0.2:
+            offset_m = 0.2
+        if offset_m < -0.2:
+            offset_m = -0.2
 
-        if sm < 0.0:
-            sm = 0.0
-        if sm > 1.0:
-            sm = 1.0
+        if smoothimg_strength < 0.0:
+            smoothimg_strength = 0.0
+        if smoothimg_strength > 1.0:
+            smoothimg_strength = 1.0
 
-        self.offset_m = off
-        self.smooth_strength = sm
+        self.offset_m = offset_m
+        self.smooth_strength = smoothimg_strength
 
         # self.get_logger().info(f"params: offset={self.offset_m:.3f} smooth={self.smooth_strength:.2f}")
 
-    def cb_path(self, msg: Path):
+    def path_callback(self, msg: Path):
         if len(msg.poses) < 3:
-            self.pub_path.publish(msg)
+            self.path_publisher.publish(msg)
             return
 
-        pts = [(p.pose.position.x, p.pose.position.y) for p in msg.poses]
+        points_xy = [(pose.pose.position.x, pose.pose.position.y) for pose in msg.poses]
 
         # offset ráhúzása
         if abs(self.offset_m) > 1e-6:
-            pts = self.apply_offset(pts, self.offset_m)
+            points_xy = self.apply_offset(points_xy, self.offset_m)
 
         # simítás (0/1/2 iter)
-        iters = 0
+        smoothing_iter  = 0
         if self.smooth_strength < 0.33:
-            iters = 0
+            smoothing_iter = 0
         elif self.smooth_strength < 0.66:
-            iters = 1
+            smoothing_iter = 1
         else:
-            iters = 2
+            smoothing_iter = 2
 
-        if iters > 0:
-            pts = self.chaikin_smooth(pts, iters)
+        if smoothing_iter > 0:
+            points_xy = self.chaikin_smooth(points_xy, smoothing_iter)
 
         # vissza Path üzenetbe
-        out = Path()
-        out.header = msg.header
+        smoothed_path_msg  = Path()
+        smoothed_path_msg .header = msg.header
 
-        for x, y in pts:
-            ps = PoseStamped()
-            ps.header = out.header
-            ps.pose.position.x = float(x)
-            ps.pose.position.y = float(y)
-            ps.pose.position.z = 0.0
-            ps.pose.orientation.w = 1.0
-            out.poses.append(ps)
+        for x, y in points_xy:
+            pose_stamped = PoseStamped()
+            pose_stamped.header = smoothed_path_msg .header
+            pose_stamped.pose.position.x = float(x)
+            pose_stamped.pose.position.y = float(y)
+            pose_stamped.pose.position.z = 0.0
+            pose_stamped.pose.orientation.w = 1.0
+            smoothed_path_msg .poses.append(pose_stamped)
          
         #use_sim_time miatt tettem be!    
         now = self.get_clock().now().to_msg()
-        out.header.stamp = now
-        for p in out.poses:
-            p.header.stamp = now
+        smoothed_path_msg .header.stamp = now
+        for pose in smoothed_path_msg.poses:
+            pose.header.stamp = now
 
-        self.pub_path.publish(out)
+        self.path_publisher.publish(smoothed_path_msg )
 
-    def apply_offset(self, pts, offset_m: float):
+    def apply_offset(self, points_xy, offset_m: float):
         """
         - minden ponthoz becsüljük a tangens irányt (előző-következő)
         - ebből normált számolunk (balra)
         - pontot eltoljuk normál irányba
         """
-        n = len(pts)
-        out = []
+        number_points = len(points_xy)
+        out_ofset_points = []
 
-        for i in range(n):
+        for i in range(number_points):
             if i == 0:
-                x0, y0 = pts[i]
-                x1, y1 = pts[i + 1]
-                tx = x1 - x0
-                ty = y1 - y0
-            elif i == n - 1:
-                x0, y0 = pts[i - 1]
-                x1, y1 = pts[i]
-                tx = x1 - x0
-                ty = y1 - y0
+                x0, y0 = points_xy[i]
+                x1, y1 = points_xy[i + 1]
+            elif i == number_points - 1:
+                x0, y0 = points_xy[i - 1]
+                x1, y1 = points_xy[i]
             else:
-                x0, y0 = pts[i - 1]
-                x1, y1 = pts[i + 1]
-                tx = x1 - x0
-                ty = y1 - y0
+                x0, y0 = points_xy[i - 1]
+                x1, y1 = points_xy[i + 1]
+                
+            tangens_x = x1 - x0
+            tangens_y = y1 - y0
 
-            tlen = math.hypot(tx, ty)
-            if tlen < 1e-6:
-                out.append(pts[i])
+            tangens_len = math.hypot(tangens_x, tangens_y)
+            if tangens_len < 1e-6:
+                out_ofset_points.append(points_xy[i])
                 continue
 
-            tx /= tlen
-            ty /= tlen
+            tangens_x /= tangens_len
+            tangens_y /= tangens_len
 
             # bal oldali normál
-            nx = -ty
-            ny = tx
+            normal_vectx = -tangens_y
+            normal_vecty = tangens_x
 
-            x, y = pts[i]
-            out.append((x + offset_m * nx, y + offset_m * ny))
+            currentx, currenty = points_xy[i]
+            out_ofset_points.append((currentx + offset_m * normal_vectx, currenty + offset_m * normal_vecty))
 
-        return out
+        return out_ofset_points
         
     def chaikin_smooth(self, eredeti_pontok, hany_szor_simitunk: int):
         
         """
         Chaikin-simítás:
-            - minden szakaszt két pontra bont:
+            minden szakaszt két pontra bont:
                 Q = 0.75*P0 + 0.25*P1
                 R = 0.25*P0 + 0.75*P1
-            - ettől lekerekedik az útvonal
+            ettől lekerekedik az útvonal
         """
         
         # Másolatot készítek

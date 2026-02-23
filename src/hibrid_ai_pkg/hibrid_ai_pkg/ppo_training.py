@@ -15,11 +15,11 @@ class PPOTraining:
         # PPO / GAE hiperparaméterek
         self.gamma = 0.99
         self.gae_lambda = 0.95
-        self.clip = 0.2
-        self.k_epochs = 4 #4 ez volt a kiindulás, 6 
+        self.clip = 0.1 #0.2
+        self.k_epochs = 6 #4 ez volt a kiindulás, 6 
 
         # Loss súlyok
-        self.entropy_coef = 0.01
+        self.entropy_coef = 0.005 #0.01
         self.value_coef = 0.5
         self.max_grad_norm = 0.5
 
@@ -149,7 +149,7 @@ class PPOTraining:
         self.copy_policy()
 
         print(f"[PPO] ep={self.episode} steps={len(rewards)} avgR={float(np.mean(rewards)):.3f}")
-
+    '''
     def gae(self, rewards: np.ndarray, values: np.ndarray, dones: np.ndarray):
         T = len(rewards)
         adv = np.zeros(T, dtype=np.float32)
@@ -167,6 +167,29 @@ class PPOTraining:
             ret[t] = adv[t] + values[t]
 
             next_value = values[t]
+
+        return adv, ret
+    '''
+    
+    def gae(self, rewards: np.ndarray, values: np.ndarray, dones: np.ndarray):
+        T = len(rewards)
+        adv = np.zeros(T, dtype=np.float32)
+        ret = np.zeros(T, dtype=np.float32)
+
+        gae_val = 0.0
+
+        for t in reversed(range(T)):
+            if t == T - 1:
+                next_value = 0.0
+            else:
+                next_value = values[t + 1]
+
+            not_done = 1.0 - dones[t]
+            delta = rewards[t] + self.gamma * next_value * not_done - values[t]
+            gae_val = delta + self.gamma * self.gae_lambda * not_done * gae_val
+
+            adv[t] = gae_val
+            ret[t] = adv[t] + values[t]
 
         return adv, ret
 

@@ -242,7 +242,7 @@ class PPOTrainer(Node):
             
         else:
             # egyszerű reward
-            reward, done, reason = (2.0 * delta_distance_goal - 0.01 - 0.2 * cross_track_error), False, "running"
+            reward, done, reason = (2.0 * delta_distance_goal - 0.01 - 0.2 * cross_track_error - 0.02 * abs(self.current_offset)), False, "running"
 
         # store
         if self.train_mode:
@@ -454,8 +454,18 @@ class PPOTrainer(Node):
                 lidar_vector.append(min_distance_i / self.lidar_max_range)
                 
         cross_track_error = self.calc_cross_track_error_map_xy(robot_x, robot_y, path)
+        
+        norm_goal_distance = min(distance_goal / 20.0, 1.0)          # 20m felett 1.0
+        norm_cross_track_error   = min(cross_track_error / 2.0, 1.0)       # 2m felett 1.0
+
+        norm_linear_speed  = np.clip(robot_speed / 1.0, -1.0, 1.0)      # ha ~1 m/s a max
+        norm_angular_speed  = np.clip(robot_turn_speed / 1.5, -1.0, 1.0) # ha ~1.5 rad/s a max
+
+        norm_min_lidar_range  = np.clip(min_range / self.lidar_max_range, 0.0, 1.0)
+
+        state = np.array([norm_goal_distance, norm_linear_speed , norm_angular_speed , norm_min_lidar_range ,
+                          norm_cross_track_error ] + lidar_vector, dtype=np.float32)
                 
-        state = np.array([distance_goal, robot_speed, robot_turn_speed, float(min_range), cross_track_error] + lidar_vector,dtype=np.float32)
         info = {"distance_goal": float(distance_goal), "min_range": float(min_range), "cross_track_error": float(cross_track_error)}
         
         return state, info
@@ -487,23 +497,24 @@ class PPOTrainer(Node):
         except Exception as e:
             self.get_logger().error(f"[BEST] mentés hiba: {e}")
             
+            
     def robot_xy_in_map(self, odom: Odometry):
         """
         Odomból robot pozícióját átszámolja map frame-be TF2-vel.
         Vissza: (x_map, y_map) vagy (None, None) ha nincs TF.
         """
-        p = PointStamped()
-        p.header.frame_id = odom.header.frame_id  # "odom"
+        point_stampe = PointStamped()
+        point_stampe.header.frame_id = odom.header.frame_id  # "odom"
         now = self.get_clock().now()
-        p.header.stamp = now.to_msg()
+        point_stampe.header.stamp = now.to_msg()
 
-        p.point.x = float(odom.pose.pose.position.x)
-        p.point.y = float(odom.pose.pose.position.y)
-        p.point.z = 0.0
+        point_stampe.point.x = float(odom.pose.pose.position.x)
+        point_stampe.point.y = float(odom.pose.pose.position.y)
+        point_stampe.point.z = 0.0
 
         try:
-            tf = self.tf_buffer.lookup_transform("map",p.header.frame_id, now,timeout=Duration(seconds=0.2))
-            p_map = do_transform_point(p, tf)
+            tf = self.tf_buffer.lookup_transform("map",point_stampe.header.frame_id, now,timeout=Duration(seconds=0.2))
+            p_map = do_transform_point(point_stampe, tf)
             
             return float(p_map.point.x), float(p_map.point.y)
 

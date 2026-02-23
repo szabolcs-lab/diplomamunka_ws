@@ -4,39 +4,22 @@ from torch.distributions import Normal
 
 
 class ActorCriticNetwork(nn.Module):
-    def __init__(
-        self,
-        n_inputs: int,
-        n_actions: int = 2,
-        save_file: str = "ppo_path_shaping.pt",
-        sigma: float = 0.1
-    ):
+    def __init__(self,n_inputs: int, n_actions: int = 2, save_file: str = "ppo.pt",sigma: float = 0.05 ): #0.1
         super().__init__()
         self.save_file = save_file
         self.sigma = sigma
 
         # Actor háló
-        self.actor = nn.Sequential(
-            nn.Linear(n_inputs, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, n_actions),
-            nn.Tanh()   # action ∈ [-1,1]
-        )
+        self.actor = nn.Sequential(nn.Linear(n_inputs, 256), nn.ReLU(),
+                                   nn.Linear(256, 128),nn.ReLU(), 
+                                   nn.Linear(128, 64),nn.ReLU(),
+                                   nn.Linear(64, n_actions),nn.Tanh())# action ∈ [-1,1]
 
         # Critic háló
-        self.critic = nn.Sequential(
-            nn.Linear(n_inputs, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1)
-        )
+        self.critic = nn.Sequential(nn.Linear(n_inputs, 256), nn.ReLU(),
+                                    nn.Linear(256, 128),nn.ReLU(),
+                                    nn.Linear(128, 64),nn.ReLU(),
+                                    nn.Linear(64, 1))
 
         # Optimizer)
         self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=3e-4)
@@ -56,13 +39,9 @@ class ActorCriticNetwork(nn.Module):
 
     def save_in_file(self):
         print("Hálózat mentése indul...")
-        torch.save({
-            "actor": self.actor.state_dict(),
-            "critic": self.critic.state_dict(),
-            "actor_optimizer": self.actor_optim.state_dict(),
-            "critic_optimizer": self.critic_optim.state_dict(),
-            "sigma": self.sigma
-        }, self.save_file)
+        torch.save({"actor": self.actor.state_dict(),"critic": self.critic.state_dict(),"actor_optimizer": self.actor_optim.state_dict(),
+                    "critic_optimizer": self.critic_optim.state_dict(), "sigma": self.sigma}, self.save_file)
+        
         print(f"Mentve: {self.save_file}")
 
     def load_from_file(self):
