@@ -1,6 +1,0 @@
-ido_belyeg,modszer,palya,vegrehajtasi_ido (sec),utkozesek_szama,atlagos_eltetes (meter),max_eltetes (meter),sebessegvaltozas_energia
-2026-02-23 08:36:00,d_star_lite_nav2_dynamic,occupancy_grid_3.csv,227.949,0,0.0795,0.3657,7.1479
-2026-02-23 08:39:39,d_star_lite_nav2_dynamic,occupancy_grid_1.csv,188.807,0,0.0731,0.3703,5.8881
-2026-02-23 08:40:39,d_star_lite_nav2_dynamic,occupancy_grid_2.csv,27.276,0,0.3813,1.2254,1.9917
-2026-02-23 08:54:01,d_star_lite_nav2_dynamic,occupancy_grid_2.csv,26.931,0,0.3710,1.2190,1.9640
-2026-02-23 08:57:25,d_star_lite_nav2_dynamic,occupancy_grid_2.csv,144.741,0,0.1190,0.9498,5.4501
