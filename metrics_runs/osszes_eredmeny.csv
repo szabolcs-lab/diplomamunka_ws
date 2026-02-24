@@ -1,0 +1,23 @@
+ido_belyeg,modszer,palya,vegrehajtasi_ido (sec),utkozesek_szama,atlagos_eltetes (meter),max_eltetes (meter),sebessegvaltozas_energia
+2026-02-24 07:51:47,a_star_nav2_static,occupancy_grid_1.csv,168.308,0,0.0760,0.2405,5.7474
+2026-02-24 07:54:52,a_star_nav2_static,occupancy_grid_1.csv,169.495,0,0.0756,0.2285,5.7317
+2026-02-24 07:57:40,a_star_nav2_static,occupancy_grid_2.csv,132.749,0,0.0663,0.2049,4.4846
+2026-02-24 08:00:10,a_star_nav2_static,occupancy_grid_2.csv,130.186,0,0.0714,0.2103,4.4484
+2026-02-24 08:06:37,a_star_nav2_static,occupancy_grid_3.csv,225.506,0,0.0706,0.2974,7.0570
+2026-02-24 08:10:49,a_star_nav2_static,occupancy_grid_3.csv,225.795,0,0.0708,0.2963,7.1716
+2026-02-24 08:15:00,rrt_star_nav2_static,occupancy_grid_1.csv,182.182,0,0.0879,0.2648,5.9508
+2026-02-24 08:18:26,rrt_star_nav2_static,occupancy_grid_1.csv,185.980,0,0.0887,0.3179,5.4313
+2026-02-24 08:34:56,rrt_star_nav2_static,occupancy_grid_2.csv,133.262,0,0.0842,0.2162,4.1573
+2026-02-24 08:37:34,rrt_star_nav2_static,occupancy_grid_2.csv,138.797,0,0.1030,0.3187,5.0716
+2026-02-24 08:44:49,rrt_star_nav2_static,occupancy_grid_3.csv,231.959,1,0.0909,0.3214,7.2320
+2026-02-24 08:49:00,rrt_star_nav2_static,occupancy_grid_3.csv,217.143,1,0.0900,0.2999,6.0858
+2026-02-24 08:54:17,rrt_star_nav2_static,occupancy_grid_3.csv,228.554,0,0.0950,0.4643,6.7576
+2026-02-24 08:57:53,d_star_lite_nav2_static,occupancy_grid_1.csv,177.582,0,0.0764,0.3694,5.7215
+2026-02-24 09:01:16,d_star_lite_nav2_static,occupancy_grid_1.csv,178.903,0,0.0769,0.3682,5.8335
+2026-02-24 09:03:49,d_star_lite_nav2_static,occupancy_grid_2.csv,132.782,0,0.0662,0.3686,3.8705
+2026-02-24 09:08:52,d_star_lite_nav2_static,occupancy_grid_2.csv,131.973,0,0.0645,0.3443,3.8342
+2026-02-24 09:13:02,d_star_lite_nav2_static,occupancy_grid_3.csv,227.368,0,0.0746,0.3682,7.3660
+2026-02-24 09:17:23,d_star_lite_nav2_static,occupancy_grid_3.csv,228.196,0,0.0740,0.3695,7.1769
+2026-02-24 09:46:11,hibrid_d_star_lite_ppo_nav2_static_grid_1,occupancy_grid_1.csv,178.369,0,0.0769,0.3701,5.7664
+2026-02-24 09:49:08,hibrid_d_star_lite_ppo_nav2_static_grid_2,occupancy_grid_2.csv,131.303,0,0.0656,0.3689,3.7709
+2026-02-24 09:53:31,hibrid_d_star_lite_ppo_nav2_static_grid_3,occupancy_grid_3.csv,228.604,0,0.0750,0.3693,7.1875

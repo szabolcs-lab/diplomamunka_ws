@@ -1,0 +1,10 @@
+inditas_idopont,algoritmus,palya_nev,scenario,fazis,tervezesi_ido (sec),tervezett_ut_hossza (meter),memoria (MB),cpu_kihasznaltsag (%),szamitasok_szama (db)
+2026-02-24 08:11:55,RRT_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_static,static,statikus,0.304917628000112,47.9371604572583,63.3046875,102.6,795
+2026-02-24 08:15:17,RRT_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_static,static,statikus,0.19914328300001216,49.41411028367927,77.40625,109.6,702
+2026-02-24 08:32:41,RRT_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_2.csv_static,static,statikus,0.39628278600002886,35.909001148183584,68.93359375,106.5,1068
+2026-02-24 08:35:13,RRT_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_2.csv_static,static,statikus,0.06457602000000406,36.24338942806786,74.89453125,117.0,402
+2026-02-24 08:40:27,RRT_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_3.csv_static,static,statikus,1.653966789000151,0.0,67.17578125,102.2,1971
+2026-02-24 08:40:54,RRT_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_3.csv_static,static,statikus,1.242036105000352,62.072057780844695,71.40234375,103.5,1736
+2026-02-24 08:45:20,RRT_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_3.csv_static,static,statikus,1.4128959310000937,57.94480183008454,75.3828125,101.8,1975
+2026-02-24 08:50:14,RRT_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_3.csv_static,static,statikus,1.465694538000207,0.0,66.7734375,103.7,1917
+2026-02-24 08:50:27,RRT_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_3.csv_static,static,statikus,1.0670972790003361,60.60716738822208,63.41796875,104.0,1597

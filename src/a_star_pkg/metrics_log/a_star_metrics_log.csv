@@ -1,0 +1,8 @@
+inditas_idopont,algoritmus,palya_nev,scenario,fazis,tervezesi_ido (sec),tervezett_ut_hossza (meter),memoria (MB),cpu_kihasznaltsag (%),szamitasok_szama (db)
+2026-02-24 07:48:56,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_static,static,statikus,0.24884198200004448,44.26665636034826,80.1015625,109.1,24465
+2026-02-24 07:52:01,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_1.csv_static,static,statikus,0.2503294050000022,44.26665636034826,64.203125,109.2,24465
+2026-02-24 07:55:25,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_2.csv_static,static,statikus,0.2059322019999854,33.687085459347166,65.85546875,109.3,20512
+2026-02-24 07:57:59,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_2.csv_static,static,statikus,0.21221841999999924,33.687085459347166,63.734375,101.4,20512
+2026-02-24 08:00:52,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_3.csv_static,static,statikus,0.3740705660000003,57.10524355722582,63.16796875,93.2,36074
+2026-02-24 08:02:48,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_3.csv_static,static,statikus,0.4751725860000988,57.10524355722582,69.015625,101.3,36074
+2026-02-24 08:07:02,A_star,/home/ajr/diplomamunka_ws/install/simulation_resources_pkg/share/simulation_resources_pkg/maps/occupancy_grid_3.csv_static,static,statikus,0.40047411399996236,57.10524355722582,64.078125,92.4,36074
