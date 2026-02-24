@@ -73,7 +73,7 @@ def generate_launch_description():
             # óvatos eltolás limit
             'offset_limit': 0.05,
             
-            'smooth_max': 0.25, #0.25, 0.20 (ezzel rosszabb lett a lépés), 0,28 (ezzel rosszabb lett a lépés), 0.30
+            'smooth_max': 0.30, #0.25, 0.20 (ezzel rosszabb lett a lépés), 0,28 (ezzel rosszabb lett a lépés), 0.30
 
             'odom_topic': '/odom',
             'scan_topic': '/scan',

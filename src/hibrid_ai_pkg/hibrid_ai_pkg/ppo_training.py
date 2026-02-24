@@ -11,33 +11,42 @@ import time
 
 
 class PPOTraining:
+    """
+    PPO (Proximal Policy Optimization) tanítási segédosztály.
+
+    Feladatok:
+      lépésenkéénti tapasztalatok eltárolása (state, action, log_prob, reward, done)
+      epizód végén (vagy elegendő mintaszámnál) policy frissítése PPO-val
+      GAE (Generalized Advantage Estimation) számítása előnyökhöz (advantages) és célértékekhez (returns)
+      modellek mentése futtatásonkét elkülönített mappába
+    """
+
     def __init__(self, state_dim: int, action_dim: int = 2):
-        # PPO / GAE hiperparaméterek
+        # PPO/GAE hiperparaméterek
         self.gamma = 0.99
         self.gae_lambda = 0.95
-        self.clip = 0.1 #0.2
-        self.k_epochs = 6 #4 ez volt a kiindulás, 6 
+        self.clip = 0.15 #0.1  # 0.2
+        self.k_epochs = 6  # 4 ez volt a kiindulás, 6
 
         # Loss súlyok
-        self.entropy_coef = 0.005 #0.01
+        self.entropy_coef = 0.001 #0.005  # 0.01
         self.value_coef = 0.5
         self.max_grad_norm = 0.5
 
         # Minimum lépésszám frissítéshez
-        self.min_update_steps = 64
+        self.min_update_steps = 512 #256 #64
 
-        #Mentés / run mappa - ezt törölnöm kell, majd!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        # Mentés / run mappa - ezt törölnöm kell, majd!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         self.run_id = time.strftime("%Y-%m-%d_%H%M%S")
         self.save_dir = f"./ppo_runs/run_{self.run_id}"
         os.makedirs(self.save_dir, exist_ok=True)
 
-        # Mentsünk pl. 5 epizódonként (de lehet 1 is)
-        self.save_freq = 1
+        # Ments gyakorisága
+        self.save_gyakorisag = 1
 
         # epizód számláló (run-on belül)
         self.episode = 0
-
-        # Egyszerűség kedvéért CPU
+        
         self.device = torch.device("cpu")
 
         # policy + old_policy
@@ -53,19 +62,29 @@ class PPOTraining:
         # induláskor old_policy = policy
         self.copy_policy()
 
-        print(f"[PPO] run_id={self.run_id} save_dir={self.save_dir}")
+        print(f"PPO run_id={self.run_id} save_dir={self.save_dir}")
 
     def store(self, state, action, log_prob, reward, done):
-        done_f = 1.0 if bool(done) else 0.0
+        """
+        Tapasztalat tárolása a  PPO memóriába.
+
+        Paraméterek:
+          state: megfigyelés / állapot (pl. lidar + célinfo stb.)
+          action: végrehajtott akció (folytonos vektor)
+          log_prob: a policy által számolt log-valószínűség az adott action-re
+          reward: jutalom az adott lépésre
+          done: terminális jelző (epizód vége)
+        """
+        done_flag = 1.0 if bool(done) else 0.0
 
         # log_prob - scalar
         if isinstance(log_prob, torch.Tensor):
-            lp = log_prob.detach().cpu().numpy()
-            lp = np.array(lp).reshape(-1)
-            log_prob_scalar = float(np.sum(lp))
+            log_prob_numpy = log_prob.detach().cpu().numpy()
+            log_prob_numpy = np.array(log_prob_numpy).reshape(-1)
+            log_prob_scalar = float(np.sum(log_prob_numpy))
         else:
-            lp = np.array(log_prob).reshape(-1)
-            log_prob_scalar = float(np.sum(lp))
+            log_prob_numpy = np.array(log_prob).reshape(-1)
+            log_prob_scalar = float(np.sum(log_prob_numpy))
 
         # action
         if isinstance(action, torch.Tensor):
@@ -75,64 +94,69 @@ class PPOTraining:
 
         state_out = np.array(state, dtype=np.float32)
 
-        self.memory.store_data(state_out, action_out, log_prob_scalar, float(reward), done_f)
+        self.memory.store_data(state_out, action_out, log_prob_scalar, float(reward), done_flag)
 
     def finish_episode(self):
         """
-        Epizód vége. Ha van elég adat - update + mentés.
+        Epizód vége.
         """
-        # epizód számláló nő MINDEN esetben (így a fájlnevek sosem ismétlődnek run-on belül)
-        self.episode += 1
+        # epizód számláló nő MINDEN esetben
+        self.episode = self.episode + 1
 
-        # ha kevés adat van, akkor nincs update
+        # ha kevés adat van, akkor nem updatelek
         if len(self.memory.states) < self.min_update_steps:
             self.memory.clear_data()
             print(f"[PPO] ep={self.episode} kevés adat ({len(self.memory.states)}), nincs update.")
             return
 
         # tanítás
-        self.update()
+        self.update_policy()
 
-        # mentés időnként
-        if self.episode % self.save_freq == 0:
+        # mentés időnkét
+        if self.episode % self.save_gyakorisag == 0:
             self.save()
 
-        # memória ürítés
+        #memória ürítés
         self.memory.clear_data()
 
-    def update(self):
-        states = torch.tensor(np.array(self.memory.states), dtype=torch.float32, device=self.device)
-        actions = torch.tensor(np.array(self.memory.actions), dtype=torch.float32, device=self.device)
-        old_log_probs = torch.tensor(np.array(self.memory.log_probs), dtype=torch.float32, device=self.device)
+    def update_policy(self):
+        """
+        PPO policy frissítés a memóriában összegyűjtött rollout adatok alapján.
+        """
+        states_tensor = torch.tensor(np.array(self.memory.states), dtype=torch.float32, device=self.device)
+        actions_tensor = torch.tensor(np.array(self.memory.actions), dtype=torch.float32, device=self.device)
+        old_log_probs_tensor = torch.tensor(np.array(self.memory.log_probs), dtype=torch.float32, device=self.device)
 
-        rewards = np.array(self.memory.rewards, dtype=np.float32)
-        dones = np.array(self.memory.is_terminals, dtype=np.float32)
+        reward_numpy = np.array(self.memory.rewards, dtype=np.float32)
+        dones_numpy = np.array(self.memory.is_terminals, dtype=np.float32)
 
+        # old_policy - value becslés (critic)
         with torch.no_grad():
-            _, values = self.old_policy(states)
-            values = values.squeeze(-1).cpu().numpy()
+            _, value_tensor = self.old_policy(states_tensor)
+            value_numpy = value_tensor.squeeze(-1).cpu().numpy()
 
-        advantages, returns = self.gae(rewards, values, dones)
+        advantages_numpy, returns_numpy = self.gae(reward_numpy, value_numpy, dones_numpy)
 
-        advantages = torch.tensor(advantages, dtype=torch.float32, device=self.device)
-        returns = torch.tensor(returns, dtype=torch.float32, device=self.device)
+        advantages_tensor = torch.tensor(advantages_numpy, dtype=torch.float32, device=self.device)
+        returns_tensor = torch.tensor(returns_numpy, dtype=torch.float32, device=self.device)
 
-        advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
+        # Advantage normalizálás, stabilabb tanulás
+        advantages_tensor = (advantages_tensor - advantages_tensor.mean()) / (advantages_tensor.std(unbiased=False) + 1e-8)
 
         for _ in range(self.k_epochs):
-            dist, new_values = self.policy(states)
-            new_values = new_values.squeeze(-1)
+            action_distribution, new_value_tensor = self.policy(states_tensor)
+            new_value_tensor = new_value_tensor.squeeze(-1)
 
-            new_log_probs = dist.log_prob(actions).sum(-1)
-            ratios = torch.exp(new_log_probs - old_log_probs)
+            new_log_probs_tensor = action_distribution.log_prob(actions_tensor).sum(-1)
+            ratios = torch.exp(new_log_probs_tensor - old_log_probs_tensor)
 
-            surr1 = ratios * advantages
-            surr2 = torch.clamp(ratios, 1.0 - self.clip, 1.0 + self.clip) * advantages
+            surr1 = ratios * advantages_tensor
+            surr2 = torch.clamp(ratios, 1.0 - self.clip, 1.0 + self.clip) * advantages_tensor
             actor_loss = -torch.min(surr1, surr2).mean()
 
-            critic_loss = F.mse_loss(new_values, returns)
+            critic_loss = F.mse_loss(new_value_tensor, returns_tensor)
 
-            entropy = dist.entropy().sum(-1).mean()
+            entropy = action_distribution.entropy().sum(-1).mean()
 
             loss = actor_loss + self.value_coef * critic_loss - self.entropy_coef * entropy
 
@@ -148,70 +172,54 @@ class PPOTraining:
 
         self.copy_policy()
 
-        print(f"[PPO] ep={self.episode} steps={len(rewards)} avgR={float(np.mean(rewards)):.3f}")
-    '''
+        print(f"PPO epizód={self.episode} steps={len(reward_numpy)} avgR={float(np.mean(reward_numpy)):.3f}")
+
+
     def gae(self, rewards: np.ndarray, values: np.ndarray, dones: np.ndarray):
-        T = len(rewards)
-        adv = np.zeros(T, dtype=np.float32)
-        ret = np.zeros(T, dtype=np.float32)
+        num_steps = len(rewards)
 
-        gae_val = 0.0
-        next_value = 0.0
+        advantages = np.zeros(num_steps, dtype=np.float32)
+        returns = np.zeros(num_steps, dtype=np.float32)
 
-        for t in reversed(range(T)):
-            not_done = 1.0 - dones[t]
-            delta = rewards[t] + self.gamma * next_value * not_done - values[t]
-            gae_val = delta + self.gamma * self.gae_lambda * not_done * gae_val
+        A_t = 0.0
 
-            adv[t] = gae_val
-            ret[t] = adv[t] + values[t]
+        for i in reversed(range(num_steps)):
+            next_value = 0.0 if i == num_steps - 1 else values[i + 1]
+            non_terminal_mask = 1.0 - dones[i]
 
-            next_value = values[t]
+            td_error = rewards[i] + self.gamma * next_value * non_terminal_mask - values[i]
+            A_t = td_error + self.gamma * self.gae_lambda * non_terminal_mask * A_t
 
-        return adv, ret
-    '''
-    
-    def gae(self, rewards: np.ndarray, values: np.ndarray, dones: np.ndarray):
-        T = len(rewards)
-        adv = np.zeros(T, dtype=np.float32)
-        ret = np.zeros(T, dtype=np.float32)
+            advantages[i] = A_t
+            returns[i] = advantages[i] + values[i]
 
-        gae_val = 0.0
-
-        for t in reversed(range(T)):
-            if t == T - 1:
-                next_value = 0.0
-            else:
-                next_value = values[t + 1]
-
-            not_done = 1.0 - dones[t]
-            delta = rewards[t] + self.gamma * next_value * not_done - values[t]
-            gae_val = delta + self.gamma * self.gae_lambda * not_done * gae_val
-
-            adv[t] = gae_val
-            ret[t] = adv[t] + values[t]
-
-        return adv, ret
+        return advantages, returns
 
     def copy_policy(self):
+        """
+        Az old_policy frissítése az aktuális policy paramétereivel.
+        """
         self.old_policy.actor.load_state_dict(self.policy.actor.state_dict())
         self.old_policy.critic.load_state_dict(self.policy.critic.state_dict())
 
     def save(self):
+        """
+        Policy checkpoint mentése.
+        """
         path = os.path.join(self.save_dir, f"ppo_ep_{self.episode}.pth")
 
-        old = self.policy.save_file
+        old_save_file = self.policy.save_file
         self.policy.save_file = path
         self.policy.save_in_file()
-        self.policy.save_file = old
+        self.policy.save_file = old_save_file
 
-        print(f"[PPO] mentve: {path}")
+        print(f"PPO elmentve: {path}")
 
         latest_path = os.path.join(self.save_dir, "latest.pth")
         shutil.copyfile(path, latest_path)
 
-        # extra: run-hoz kötött latest, ha később másolgatnám a mappákat
+        #run-hoz kötött latest, ha később másolgatnám a mappákat
         latest_run_path = os.path.join(self.save_dir, f"latest_{self.run_id}.pth")
         shutil.copyfile(path, latest_run_path)
 
-        print(f"[PPO] latest frissítve: {latest_path}")
+        print(f"PPO latest-je frissítve: {latest_path}")

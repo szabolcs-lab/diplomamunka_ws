@@ -128,7 +128,7 @@ class PPOTrainer(Node):
         os.makedirs(self.trainer.save_dir, exist_ok=True)
 
         # legyen 1 epizód = 1 mentés
-        self.trainer.save_freq = 1
+        self.trainer.save_gyakorisag = 1
 
         # induláskor mindig BEST betöltés, ha van
         if self.train_mode:
@@ -242,7 +242,8 @@ class PPOTrainer(Node):
             
         else:
             # egyszerű reward
-            reward, done, reason = (2.0 * delta_distance_goal - 0.01 - 0.2 * cross_track_error - 0.02 * abs(self.current_offset)), False, "running"
+            # (2.0 * delta_distance_goal - 0.01 - 0.2 * cross_track_error - 0.02 * abs(self.current_offset))
+            reward, done, reason = (2.0 * delta_distance_goal - 0.01 - 0.15 * cross_track_error - 0.005 * abs(self.current_offset)), False, "running"
 
         # store
         if self.train_mode:
@@ -279,7 +280,7 @@ class PPOTrainer(Node):
         action_np = action.squeeze(0).cpu().numpy().astype(np.float32)
         self.current_action = action_np
 
-        off, sm = action_to_shaping(torch.tensor(action_np), max_offset_m=self.max_offset_m)
+        off, sm = action_to_shaping(torch.tensor(action_np), max_offset_meter=self.max_offset_m)
 
         # egyszerű limit
         off = float(max(-self.offset_limit, min(self.offset_limit, float(off))))
@@ -476,15 +477,16 @@ class PPOTrainer(Node):
         if path is None or len(path.poses) == 0:
             return 0.0
 
-        min_dist = 1e9
-        for ps in path.poses:
-            px = float(ps.pose.position.x)  # map
-            py = float(ps.pose.position.y)  # map
-            d = math.hypot(px - robot_x, py - robot_y)
-            if d < min_dist:
-                min_dist = d
+        min_distance_meter  = 1e9
+        for pose_stamped in path.poses:
+            path_point_x = float(pose_stamped.pose.position.x)  # map
+            path_point_y = float(pose_stamped.pose.position.y)  # map
+            distance_meter = math.hypot(path_point_x - robot_x, path_point_y - robot_y)
+            
+            if distance_meter < min_distance_meter :
+                min_distance_meter  = distance_meter
 
-        return float(min_dist)
+        return float(min_distance_meter )
     
     def save_as_best(self, steps: int, min_range: float, progress: float, score: float, model_path: str):
         try:
@@ -492,34 +494,34 @@ class PPOTrainer(Node):
 
             self._append_csv(self.best_metric_path, [os.path.basename(self.run_dir), steps,"goal", f"{min_range:.4f}", f"{progress:.4f}", f"{score:.4f}", model_path])
 
-            self.get_logger().info(f"[BEST] Frissült! steps={steps} min_range={min_range:.3f} -> {self.best_model_path}")
+            self.get_logger().info(f"A best frissült! steps={steps} min_range={min_range:.3f} -> {self.best_model_path}")
             
         except Exception as e:
-            self.get_logger().error(f"[BEST] mentés hiba: {e}")
+            self.get_logger().error(f"A best mentése során hiba történt: {e}")
             
             
     def robot_xy_in_map(self, odom: Odometry):
         """
         Odomból robot pozícióját átszámolja map frame-be TF2-vel.
-        Vissza: (x_map, y_map) vagy (None, None) ha nincs TF.
+        Visszaad (x_map, y_map) vagy (None, None) tupleült ha nincs TF.
         """
-        point_stampe = PointStamped()
-        point_stampe.header.frame_id = odom.header.frame_id  # "odom"
+        odom_point = PointStamped()
+        odom_point.header.frame_id = odom.header.frame_id  # "odom"
         now = self.get_clock().now()
-        point_stampe.header.stamp = now.to_msg()
+        odom_point.header.stamp = now.to_msg()
 
-        point_stampe.point.x = float(odom.pose.pose.position.x)
-        point_stampe.point.y = float(odom.pose.pose.position.y)
-        point_stampe.point.z = 0.0
+        odom_point.point.x = float(odom.pose.pose.position.x)
+        odom_point.point.y = float(odom.pose.pose.position.y)
+        odom_point.point.z = 0.0
 
         try:
-            tf = self.tf_buffer.lookup_transform("map",point_stampe.header.frame_id, now,timeout=Duration(seconds=0.2))
-            p_map = do_transform_point(point_stampe, tf)
+            tf = self.tf_buffer.lookup_transform("map",odom_point .header.frame_id, now,timeout=Duration(seconds=0.2))
+            map_point= do_transform_point(odom_point , tf)
             
-            return float(p_map.point.x), float(p_map.point.y)
+            return float(map_point.point.x), float(map_point.point.y)
 
         except Exception as e:
-            self.get_logger().warn(f"TF fail: {e}")
+            self.get_logger().warn(f"TF hiba: {e}")
             return None, None
 
 

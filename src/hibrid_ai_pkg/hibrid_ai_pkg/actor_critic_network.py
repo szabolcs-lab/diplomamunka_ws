@@ -4,7 +4,7 @@ from torch.distributions import Normal
 
 
 class ActorCriticNetwork(nn.Module):
-    def __init__(self,n_inputs: int, n_actions: int = 2, save_file: str = "ppo.pt",sigma: float = 0.05 ): #0.1
+    def __init__(self,n_inputs: int, n_actions: int = 2, save_file: str = "ppo.pt",sigma: float = 0.03 ): #0.05, 0.1
         super().__init__()
         self.save_file = save_file
         self.sigma = sigma
@@ -23,7 +23,7 @@ class ActorCriticNetwork(nn.Module):
 
         # Optimizer)
         self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=3e-4)
-        self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=3e-4)
+        self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=1e-3) #3e-4
 
     def forward(self, state: torch.Tensor):    
         if state.dim() == 1:
