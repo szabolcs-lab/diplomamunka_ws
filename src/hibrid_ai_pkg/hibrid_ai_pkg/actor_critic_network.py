@@ -13,7 +13,7 @@ class ActorCriticNetwork(nn.Module):
         self.actor = nn.Sequential(nn.Linear(n_inputs, 256), nn.ReLU(),
                                    nn.Linear(256, 128),nn.ReLU(), 
                                    nn.Linear(128, 64),nn.ReLU(),
-                                   nn.Linear(64, n_actions),nn.Tanh())# action ∈ [-1,1]
+                                   nn.Linear(64, n_actions),nn.Tanh())# action E [-1,1]
 
         # Critic háló
         self.critic = nn.Sequential(nn.Linear(n_inputs, 256), nn.ReLU(),
@@ -29,13 +29,13 @@ class ActorCriticNetwork(nn.Module):
         if state.dim() == 1:
             state = state.unsqueeze(0)  # (1, n_inputs)
 
-        value = self.critic(state)          # (1,1)
+        state_value = self.critic(state)          # (1,1)
         action_mean = self.actor(state)     # (1, n_actions)
 
-        sigma = torch.ones_like(action_mean) * self.sigma
-        distribution = Normal(action_mean, sigma)
+        action_std_tensor  = torch.ones_like(action_mean) * self.sigma
+        action_distribution  = Normal(action_mean, action_std_tensor )
 
-        return distribution, value
+        return action_distribution , state_value
 
     def save_in_file(self):
         print("Hálózat mentése indul...")
@@ -59,14 +59,14 @@ class ActorCriticNetwork(nn.Module):
         print(f"Betöltve: {self.save_file}")
 
 
-def action_to_shaping(action_tensor, max_offset_m: float = 0.20):
+def action_to_shaping(action_tensor, max_offset_meter: float = 0.20):
     if action_tensor.dim() == 2:
         action_tensor = action_tensor.squeeze(0)
 
-    a0 = float(torch.clamp(action_tensor[0], -1.0, 1.0).item())
-    a1 = float(torch.clamp(action_tensor[1], -1.0, 1.0).item())
+    offset_action  = float(torch.clamp(action_tensor[0], -1.0, 1.0).item())
+    smooth_action  = float(torch.clamp(action_tensor[1], -1.0, 1.0).item())
 
-    offset_m = a0 * max_offset_m
-    smooth_strength = (a1 + 1.0) * 0.5
+    path_offset_meter  = offset_action  * max_offset_meter
+    smoothing_strength  = (smooth_action  + 1.0) * 0.5
 
-    return offset_m, smooth_strength
+    return path_offset_meter , smoothing_strength
