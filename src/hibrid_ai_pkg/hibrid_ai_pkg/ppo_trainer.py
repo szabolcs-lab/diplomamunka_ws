@@ -1,512 +1,591 @@
+import csv
 import math
 import os
-import csv
 import shutil
 from datetime import datetime
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import rclpy
+from rclpy.duration import Duration
 from rclpy.node import Node
 
+from geometry_msgs.msg import PointStamped, Twist
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Float32MultiArray
 
-from geometry_msgs.msg import PointStamped
-from tf2_ros import Buffer, TransformListener
+from rcl_interfaces.msg import Parameter as RosParameter
+from rcl_interfaces.msg import ParameterType
+from rcl_interfaces.msg import ParameterValue
+from rcl_interfaces.srv import SetParameters
+
 from tf2_geometry_msgs import do_transform_point
-
-from rclpy.duration import Duration
+from tf2_ros import Buffer, TransformListener
 
 import torch
 
 from .ppo_training import PPOTraining
-from .actor_critic_network import action_to_shaping
 
 
 class PPOTrainer(Node):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("ppo_trainer")
 
-        # minimál paraméterek
+        #Paraméterek: futtatás mód
         self.declare_parameter("train_mode", True)
         self.declare_parameter("control_hz", 10.0)
 
-        # epizód
+        # Paraméterek: epizód leállítás
         self.declare_parameter("max_steps", 1200)
         self.declare_parameter("goal_tolerance", 0.50)
         self.declare_parameter("collision_distance", 0.18)
         self.declare_parameter("min_steps_for_goal", 50)
 
-        # state
+        #Paraméterek: state
         self.declare_parameter("lidar_bins", 12)
         self.declare_parameter("lidar_max_range", 6.0)
 
-        # shaping határ
-        self.declare_parameter("max_offset_m", 0.05)
-        self.declare_parameter("offset_limit", 0.02)   # egyszerű limit
-        self.declare_parameter("smooth_max", 0.25)     # fix plafon
-
-        # topicok
+        # Paraméterek: topicok
         self.declare_parameter("odom_topic", "/odom")
         self.declare_parameter("scan_topic", "/scan")
-        self.declare_parameter("path_topic", "/planned_path_smoother")
-        self.declare_parameter("params_topic", "/smoother_params")
+        self.declare_parameter("path_topic", "/planned_path_dilated")
 
-        # mentés
+        # Energia méréshez cmd_vel (ugyanaz a szemlélet, mint metrics_pkg-ben)
+        self.declare_parameter("cmd_vel_topic", "/cmd_vel")
+
+        #Paraméterek: mentés
         self.declare_parameter("runs_dir", "./ppo_runs")
 
-        # beolvasás
-        self.train_mode = bool(self.get_parameter("train_mode").value)
+        # Nav2 controller_server node neve
+        self.declare_parameter("controller_server_node", "/controller_server")
+
+        # Paraméterek: stuck + energia reward
+        # Ha stuck_window_steps-en át alig csökken a cél távolság -> stuck
+        self.declare_parameter("stuck_window_steps", 120)
+        self.declare_parameter("stuck_delta_eps", 0.002)  # méter/lépés
+
+        # Reward energia bünti súlya (kicsi legyen!)
+        self.declare_parameter("energy_weight", 0.005)
+
+        #Paraméterek beolvasása
+        self.is_training = bool(self.get_parameter("train_mode").value)
         self.control_hz = float(self.get_parameter("control_hz").value)
 
         self.max_steps = int(self.get_parameter("max_steps").value)
-        self.goal_tolerance = float(self.get_parameter("goal_tolerance").value)
-        self.collision_distance = float(self.get_parameter("collision_distance").value)
+        self.goal_tolerance_m = float(self.get_parameter("goal_tolerance").value)
+        self.collision_distance_m = float(self.get_parameter("collision_distance").value)
         self.min_steps_for_goal = int(self.get_parameter("min_steps_for_goal").value)
 
         self.lidar_bins = int(self.get_parameter("lidar_bins").value)
-        self.lidar_max_range = float(self.get_parameter("lidar_max_range").value)
-
-        self.max_offset_m = float(self.get_parameter("max_offset_m").value)
-        self.offset_limit = float(self.get_parameter("offset_limit").value)
-        self.smooth_max = float(self.get_parameter("smooth_max").value)
+        self.lidar_max_range_m = float(self.get_parameter("lidar_max_range").value)
 
         self.odom_topic = str(self.get_parameter("odom_topic").value)
         self.scan_topic = str(self.get_parameter("scan_topic").value)
         self.path_topic = str(self.get_parameter("path_topic").value)
-        self.params_topic = str(self.get_parameter("params_topic").value)
+        self.cmd_vel_topic = str(self.get_parameter("cmd_vel_topic").value)
 
         self.runs_dir = str(self.get_parameter("runs_dir").value)
         os.makedirs(self.runs_dir, exist_ok=True)
 
-        # run mappa (nem ír felül)
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_dir = os.path.join(self.runs_dir, f"run_{ts}")
+        self.controller_server_node = str(self.get_parameter("controller_server_node").value)
+
+        self.stuck_window_steps = int(self.get_parameter("stuck_window_steps").value)
+        self.stuck_delta_eps = float(self.get_parameter("stuck_delta_eps").value)
+        self.energy_weight = float(self.get_parameter("energy_weight").value)
+
+        #Run mappa
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.run_dir = os.path.join(self.runs_dir, f"run_{timestamp}")
         os.makedirs(self.run_dir, exist_ok=True)
 
-        # fájlok
-        self.run_metrics_path = os.path.join(self.run_dir, "metrics.csv")
-        self.global_metrics_path = os.path.join(self.runs_dir, "global_metrics.csv")
-        self.best_metric_path = os.path.join(self.runs_dir, "best_metrics.csv")
+        #  Log fájlok
+        self.run_metrics_csv = os.path.join(self.run_dir, "metrics.csv")
+        self.global_metrics_csv = os.path.join(self.runs_dir, "global_metrics.csv")
+        self.best_metrics_csv = os.path.join(self.runs_dir, "best_metrics.csv")
         self.best_model_path = os.path.join(self.runs_dir, "best_latest.pth")
-        self.latest_global_path = os.path.join(self.runs_dir, "latest_global.pth")
+        self.latest_global_model_path = os.path.join(self.runs_dir, "latest_global.pth")
 
-        self._init_csv_if_needed(self.run_metrics_path, header=["lepesek_szama", "befejezes_oka", "eltolas_meterben", "simitas", "celtol_valo_tavolsag (m)", 
-                                                                "legkozelebbi_akadaly_tavolsag", "ossz_haladas", "kapott_pontszam"])
-        
-        self._init_csv_if_needed(self.global_metrics_path, header=["futas_azonosito", "lepesek_szama", "befejezes_oka", "eltolas_meterben", "simitas", 
-                                                                   "celtol_valo_tavolsag (m)", "legkozelebbi_akadaly_tavolsag", 
-                                                                   "ossz_haladas", "kapott_pontszam", "modell_fajl"])
-        
-        self._init_csv_if_needed(self.best_metric_path, header=["futas_azonosito", "lepesek_szama", "befejezes_oka", "legkozelebbi_akadaly_tavolsag", "ossz_haladas", "kapott_pontszam", "forras_modell"])
+        self._init_csv_if_missing(self.run_metrics_csv, header=["lepesek_szama","befejezes_oka","mppi_vx_max","mppi_cost_weight","celtol_valo_tavolsag (m)",
+                                                                "legkozelebbi_akadaly_tavolsag","ossz_haladas","sebessegvaltozas_energia","kapott_pontszam"])
 
-        # bemenet cach
-        self.last_odom = None
-        self.last_scan = None
-        self.last_path = None
+        self._init_csv_if_missing(self.global_metrics_csv,header=["futas_azonosito","lepesek_szama","befejezes_oka","mppi_vx_max","mppi_cost_weight",
+                                                                  "celtol_valo_tavolsag (m)","legkozelebbi_akadaly_tavolsag","ossz_haladas",
+                                                                  "sebessegvaltozas_energia","kapott_pontszam","modell_fajl"])
 
-        # epizód állapot
-        self.step_count = 0
-        self.prev_distance_goal = None
-        self.progress_sum = 0.0
+        self._init_csv_if_missing(self.best_metrics_csv,header=["futas_azonosito","lepesek_szama","befejezes_oka","legkozelebbi_akadaly_tavolsag",
+                                                                "ossz_haladas","sebessegvaltozas_energia","kapott_pontszam","forras_modell"])
 
-        # aktuális paramok
+        # Bemeneti cache
+        self.latest_odom: Optional[Odometry] = None
+        self.latest_scan: Optional[LaserScan] = None
+        self.latest_path: Optional[Path] = None
+        self.latest_cmd_vel: Optional[Twist] = None
+
+        #Epizód állapot
+        self.step_index = 0
+        self.previous_goal_distance_m: Optional[float] = None
+        self.total_progress_m = 0.0
+
+        # energia
+        self.total_energy = 0.0
+        self.previous_cmd_v: Optional[float] = None
+        self.previous_cmd_w: Optional[float] = None
+
+        # stuck számláló
+        self.stuck_steps_count = 0
+
+        # PPO: action (2 dim) + logprob
         self.current_action = np.array([0.0, 0.0], dtype=np.float32)
-        self.current_log_prob = 0.0
-        self.current_offset = 0.0
-        self.current_smooth = 0.0
+        self.current_action_logprob = 0.0
 
-        # PPO
-        #self.state_dim = 4 + self.lidar_bins
+        # MPPI paramok (CSV-hez)
+        self.episode_vx_max = 0.0
+        self.episode_cost_weight = 0.0
+
+        #PPO tréner
         self.state_dim = 5 + self.lidar_bins
         self.action_dim = 2
-        self.trainer = PPOTraining(state_dim=self.state_dim, action_dim=self.action_dim)
+        self.ppo_trainer = PPOTraining(state_dim=self.state_dim, action_dim=self.action_dim)
 
-        # mentés: ide
-        self.trainer.save_dir = self.run_dir
-        os.makedirs(self.trainer.save_dir, exist_ok=True)
+        self.ppo_trainer.save_dir = self.run_dir
+        os.makedirs(self.ppo_trainer.save_dir, exist_ok=True)
 
-        # legyen 1 epizód = 1 mentés
-        self.trainer.save_gyakorisag = 1
+        # 1 epizód = 1 mentés
+        self.ppo_trainer.save_gyakorisag = 1
 
-        # induláskor mindig BEST betöltés, ha van
-        if self.train_mode:
-            self._load_best_if_exists()
+        # Train módban induláskor betöltjük a best-et
+        if self.is_training:
+            self._load_best_model_if_exists()
 
-        self.sub_odom = self.create_subscription(Odometry, self.odom_topic, self.cb_odom, 20)
-        self.sub_scan = self.create_subscription(LaserScan, self.scan_topic, self.cb_scan, 10)
-        self.sub_path = self.create_subscription(Path, self.path_topic, self.cb_path, 10)
+        #MPPI param service kliens
+        self.mppi_set_params_client = self.create_client(SetParameters, f"{self.controller_server_node}/set_parameters")
 
-        self.pub_params = self.create_publisher(Float32MultiArray, self.params_topic, 10)
+        self.sub_odom = self.create_subscription(Odometry, self.odom_topic, self._on_odom, 20)
+        self.sub_scan = self.create_subscription(LaserScan, self.scan_topic, self._on_scan, 10)
+        self.sub_path = self.create_subscription(Path, self.path_topic, self._on_path, 10)
+        self.sub_cmd = self.create_subscription(Twist, self.cmd_vel_topic, self._on_cmd_vel, 20)
 
-        period = 1.0 / max(1e-6, self.control_hz)
-        self.timer = self.create_timer(period, self.on_timer)
-        
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        mode = "TRAIN" if self.train_mode else "EVAL"
-        self.get_logger().info(f"PPOTrainer indul. mode={mode}")
+        timer_period_s = 1.0 / max(1e-6, self.control_hz)
+        self.timer = self.create_timer(timer_period_s, self._on_control_tick)
+
+        mode_text = "TRAIN" if self.is_training else "EVAL"
+        self.get_logger().info(f"PPOTrainer indul. mode={mode_text}")
         self.get_logger().info(f"Run mappa: {self.run_dir}")
         self.get_logger().info("1 launch = 1 epizód, epizód végén shutdown.")
+        self.get_logger().info(f"MPPI node: {self.controller_server_node}")
+        self.get_logger().info(f"Topics: odom={self.odom_topic} scan={self.scan_topic} path={self.path_topic} cmd={self.cmd_vel_topic}")
 
-    # Callbacks
-    def cb_odom(self, msg: Odometry):
-        self.last_odom = msg
+    def _on_odom(self, msg: Odometry):
+        self.latest_odom = msg
 
-    def cb_scan(self, msg: LaserScan):
-        self.last_scan = msg
+    def _on_scan(self, msg: LaserScan):
+        self.latest_scan = msg
 
-    def cb_path(self, msg: Path):
-        self.last_path = msg
+    def _on_path(self, msg: Path):
+        self.latest_path = msg
 
-    # CSV helper
-    def _init_csv_if_needed(self, path: str, header: list):
-        if os.path.exists(path):
+    def _on_cmd_vel(self, msg: Twist):
+        self.latest_cmd_vel = msg
+
+    #CSV util
+    def _init_csv_if_missing(self, csv_path: str, header: list):
+        if os.path.exists(csv_path):
             return
         
-        with open(path, "w", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(header)
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
 
-    def _append_csv(self, path: str, row: list):
-        with open(path, "a", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(row)
+    def _append_csv_row(self, csv_path: str, row: list):
+        with open(csv_path, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(row)
 
-    # Best load
-    def _load_best_if_exists(self):
+    def _read_last_csv_row_as_dict(self, csv_path: str):
+        if not os.path.exists(csv_path):
+            return None
+        with open(csv_path, "r", newline="") as f:
+            rows = list(csv.reader(f))
+            
+        if len(rows) < 2:
+            return None
+
+        header = rows[0]
+        last = rows[-1]
+        if len(last) != len(header):
+            return None
+
+        return {header[i]: last[i] for i in range(len(header))}
+
+    #Model load
+    def _load_best_model_if_exists(self):
         if not os.path.exists(self.best_model_path):
             self.get_logger().info("[LOAD] best_latest.pth nincs, indul nulláról.")
             return
         
         try:
-            # PPOTraining/ActorCriticNetwork ezt használja betöltéshez
-            self.trainer.policy.save_file = self.best_model_path
-            self.trainer.policy.load_from_file()
-
-            # old_policy legyen azonos (PPO stabil)
-            self.trainer.copy_policy()
-
+            self.ppo_trainer.policy.save_file = self.best_model_path
+            self.ppo_trainer.policy.load_from_file()
+            self.ppo_trainer.copy_policy()
             self.get_logger().info(f"[LOAD] Betöltve: {self.best_model_path}")
             
         except Exception as e:
             self.get_logger().error(f"[LOAD] Betöltés hiba: {e}")
 
-    # Main loop
-    def on_timer(self):
-        if self.last_odom is None or self.last_scan is None or self.last_path is None:
+    #Fő ciklus
+    def _on_control_tick(self):
+        if self.latest_odom is None or self.latest_scan is None or self.latest_path is None:
             return
-        
-        if len(self.last_path.poses) < 2:
+        if len(self.latest_path.poses) < 2:
             return
 
-        # epizód eleje: egyszer választok paramot
-        if self.step_count == 0:
-            self.pick_params_for_episode()
+        # Epizód eleje: egyszer kiválasztjuk és beállítjuk az MPPI paramokat
+        if self.step_index == 0:
+            self._select_and_set_mppi_params_for_episode()
 
-        # state
-        state, info = self.build_state(self.last_odom, self.last_scan, self.last_path)
-        
+        state, info = self._build_state_and_info(self.latest_odom, self.latest_scan, self.latest_path)
         if state is None or info is None:
             return
-        
-        distance_goal = info["distance_goal"]
-        min_r = info["min_range"]
-        cross_track_error = info["cross_track_error"]
 
-        # progress / delta (előbb számolom, utána frissítem prev-et!)
-        delta_distance_goal = 0.0
-        if self.prev_distance_goal is not None:
-            delta_distance_goal = (self.prev_distance_goal - distance_goal)
-            self.progress_sum += delta_distance_goal
-            
-        self.prev_distance_goal = distance_goal
+        goal_distance_m = info["distance_goal"]
+        min_lidar_range_m = info["min_range"]
+        cross_track_error_m = info["cross_track_error"]
 
-        can_be_goal = (self.step_count >= self.min_steps_for_goal)
+        # haladás (delta távolság)
+        delta_goal_distance_m = 0.0
+        if self.previous_goal_distance_m is not None:
+            delta_goal_distance_m = float(self.previous_goal_distance_m - goal_distance_m)
+            self.total_progress_m += delta_goal_distance_m
+            
+        self.previous_goal_distance_m = float(goal_distance_m)
 
-        # done
-        if can_be_goal and distance_goal < self.goal_tolerance:
-            reward, done, reason = 50.0, True, "goal"
-            
-        elif min_r < self.collision_distance:
-            reward, done, reason = -50.0, True, "collision"
-            
-        elif self.step_count >= self.max_steps:
-            # ha már közel a célhoz, adjunk még időt
-            if distance_goal < 2.0:
-                reward, done, reason = -0.01, False, "running"   # még fut
-            else:
-                reward, done, reason = -10.0, True, "timeout"
-            
+        # energia egy lépésre (cmd_vel alapján)
+        energy_step = self._compute_energy_step_from_cmd_vel()
+
+        # stuck detektálás
+        if abs(delta_goal_distance_m) < self.stuck_delta_eps:
+            self.stuck_steps_count += 1
         else:
-            # egyszerű reward
-            # (2.0 * delta_distance_goal - 0.01 - 0.2 * cross_track_error - 0.02 * abs(self.current_offset))
-            reward, done, reason = (2.0 * delta_distance_goal - 0.01 - 0.15 * cross_track_error - 0.005 * abs(self.current_offset)), False, "running"
+            self.stuck_steps_count = 0
 
-        # store
-        if self.train_mode:
-            self.trainer.store(state, self.current_action, self.current_log_prob, reward, done)
+        can_finish_as_goal = (self.step_index >= self.min_steps_for_goal)
 
-        self.step_count += 1
+        #Done + reward
+        done = False
+        finish_reason = "running"
 
-        # publish param
-        msg = Float32MultiArray()
-        msg.data = [self.current_offset, self.current_smooth]
-        self.pub_params.publish(msg)
+        if can_finish_as_goal and goal_distance_m < self.goal_tolerance_m:
+            reward = 50.0
+            done = True
+            finish_reason = "goal"
+
+        elif min_lidar_range_m < self.collision_distance_m:
+            reward = -50.0
+            done = True
+            finish_reason = "collision"
+
+        elif self.stuck_steps_count >= self.stuck_window_steps:
+            reward = -20.0
+            done = True
+            finish_reason = "stuck"
+
+        elif self.step_index >= self.max_steps:
+            if goal_distance_m < 2.0:
+                reward = -0.01
+                done = False
+                finish_reason = "running"
+            else:
+                reward = -10.0
+                done = True
+                finish_reason = "timeout"
+
+        else:
+            # Reward: haladás + CTE bünti + idő bünti + kis energia bünti
+            reward = (2.0 * delta_goal_distance_m- 0.01 - 0.15 * cross_track_error_m - self.energy_weight * energy_step)
+
+        # PPO memory
+        if self.is_training:
+            self.ppo_trainer.store(state,self.current_action,self.current_action_logprob,float(reward),bool(done))
+
+        self.step_index += 1
 
         # epizód vége
         if done:
-            self.finish_and_exit(reason, distance_goal, min_r)
-            
-        if self.step_count % 20 == 0:
-            robot_x, robot_y = self.robot_xy_in_map(self.last_odom)
-            self.get_logger().info(
-                f"dist_goal={distance_goal:.3f} tol={self.goal_tolerance:.3f} "
-                f"robot_map=({robot_x:.2f},{robot_y:.2f}) "
-                f"path_goal=({self.last_path.poses[-1].pose.position.x:.2f},{self.last_path.poses[-1].pose.position.y:.2f})")
+            self._finish_episode_and_shutdown(finish_reason, goal_distance_m, min_lidar_range_m)
 
-    # Episode begin/end
-    def pick_params_for_episode(self):
-        state0, info0 = self.build_state(self.last_odom, self.last_scan, self.last_path)
-        st = torch.tensor(state0, dtype=torch.float32)
+        # debug
+        if self.step_index % 20 == 0:
+            robot_x, robot_y = self._get_robot_xy_in_map(self.latest_odom)
+            self.get_logger().info(f"dist_goal={goal_distance_m:.3f} robot_map=({robot_x:.2f},{robot_y:.2f}) "
+                                   f"min_r={min_lidar_range_m:.2f} cte={cross_track_error_m:.2f} energy_sum={self.total_energy:.3f} stuck={self.stuck_steps_count}")
+
+    #Epizód eleje: action - MPPI paramok
+    def _select_and_set_mppi_params_for_episode(self):
+        state0, info0 = self._build_state_and_info(self.latest_odom, self.latest_scan, self.latest_path)
+        
+        if state0 is None or info0 is None:
+            return
+
+        state_tensor = torch.tensor(state0, dtype=torch.float32)
 
         with torch.no_grad():
-            action_distribution, _ = self.trainer.policy(st)
-            action = action_distribution.sample() if self.train_mode else action_distribution.mean
-            self.current_log_prob = float(action_distribution.log_prob(action).sum(-1).item())
+            action_distribution, _ = self.ppo_trainer.policy(state_tensor)
+            action_tensor = action_distribution.sample() if self.is_training else action_distribution.mean
+            self.current_action_logprob = float(action_distribution.log_prob(action_tensor).sum(-1).item())
 
-        action_np = action.squeeze(0).cpu().numpy().astype(np.float32)
+        action_np = action_tensor.squeeze(0).cpu().numpy().astype(np.float32)
         self.current_action = action_np
 
-        off, sm = action_to_shaping(torch.tensor(action_np), max_offset_meter=self.max_offset_m)
+        # Action [-1,1] - MPPI param tartományok (pont ugyanaz, mint PPOProductban)
+        vx_max = self._map_action_to_range(float(action_np[0]), out_min=0.20, out_max=0.60)
+        cost_weight = self._map_action_to_range(float(action_np[1]), out_min=0.50, out_max=8.00)
 
-        # egyszerű limit
-        off = float(max(-self.offset_limit, min(self.offset_limit, float(off))))
-        sm = float(max(0.0, min(self.smooth_max, float(sm))))
+        self.episode_vx_max = float(vx_max)
+        self.episode_cost_weight = float(cost_weight)
 
-        self.current_offset = off
-        self.current_smooth = sm
+        # MPPI param set (csak epizód elején)
+        self._set_mppi_parameters(vx_max=self.episode_vx_max, cost_weight=self.episode_cost_weight)
 
-        self.prev_distance_goal = float(info0["distance_goal"])
-        self.progress_sum = 0.0
+        # epizód resetek
+        self.previous_goal_distance_m = float(info0["distance_goal"])
+        self.total_progress_m = 0.0
 
-        self.get_logger().info(f"[EP START] off={self.current_offset:.3f} sm={self.current_smooth:.2f}")
+        self.total_energy = 0.0
+        self.previous_cmd_v = None
+        self.previous_cmd_w = None
 
-        # publish egyszer az elején is
-        msg = Float32MultiArray()
-        msg.data = [self.current_offset, self.current_smooth]
-        self.pub_params.publish(msg)
+        self.stuck_steps_count = 0
 
-    def finish_and_exit(self, reason: str, dist_goal: float, min_range: float):
-        # tanítás + mentés (PPOTraining intézi)
+        self.get_logger().info(f"[EP START] MPPI vx_max={self.episode_vx_max:.3f} CostCritic.cost_weight={self.episode_cost_weight:.3f}")
+
+    def _map_action_to_range(self, action_value: float, out_min: float, out_max: float):
+        # action_value in [-1, 1] -> [out_min, out_max]
+        a = float(max(-1.0, min(1.0, action_value)))
+        t = (a + 1.0) * 0.5
+        
+        return float(out_min + t * (out_max - out_min))
+
+    #Energia
+    def _compute_energy_step_from_cmd_vel(self):
+        if self.latest_cmd_vel is None:
+            return 0.0
+
+        v = float(self.latest_cmd_vel.linear.x)
+        w = float(self.latest_cmd_vel.angular.z)
+
+        if self.previous_cmd_v is None or self.previous_cmd_w is None:
+            self.previous_cmd_v = v
+            self.previous_cmd_w = w
+            return 0.0
+
+        dv = abs(v - self.previous_cmd_v)
+        dw = abs(w - self.previous_cmd_w)
+
+        self.previous_cmd_v = v
+        self.previous_cmd_w = w
+
+        energy_step = float(dv + dw)
+        self.total_energy += energy_step
+        return energy_step
+
+    # MPPI param set
+    def _make_double_param(self, name: str, value: float) -> RosParameter:
+        param = RosParameter()
+        param.name = name
+        param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=float(value))
+        
+        return param
+
+    def _set_mppi_parameters(self, vx_max: float, cost_weight: float):
+        service_name = f"{self.controller_server_node}/set_parameters"
+
+        if not self.mppi_set_params_client.wait_for_service(timeout_sec=0.5):
+            self.get_logger().warn(f"Param service nem elérhető: {service_name} (kihagyom ebben az epizódban)")
+            return
+
+        request = SetParameters.Request()
+        request.parameters = [self._make_double_param("FollowPathMPPI.vx_max", vx_max),self._make_double_param("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
+
+        future = self.mppi_set_params_client.call_async(request)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=0.5)
+
+        if future.result() is None:
+            self.get_logger().warn("Param set: nincs válasz (timeout / hiba).")
+            return
+
+        for i, result in enumerate(future.result().results):
+            if not result.successful:
+                failed_name = request.parameters[i].name
+                self.get_logger().warn(f"Param set FAIL: {failed_name} reason={result.reason}")
+
+    #Epizód vége
+    def _finish_episode_and_shutdown(self, reason: str, goal_distance_m: float, min_range_m: float):
         model_path = ""
-        if self.train_mode:
-            self.trainer.finish_episode()
 
-            # PPOTraining most mentett egy pth-t a save_dir-be (run_dir)
-            #  megkeresem a legfrissebb .pth-t (ami nem latest)
-            model_path = self._find_latest_model_in_run()
-
-            # legyen "legutóbbi futás" modell
+        if self.is_training:
+            self.ppo_trainer.finish_episode()
+            model_path = self._find_latest_model_in_run_dir()
+            
             if model_path and os.path.exists(model_path):
-                shutil.copyfile(model_path, self.latest_global_path)
+                shutil.copyfile(model_path, self.latest_global_model_path)
 
-        # score
-        score = self._score(reason, self.progress_sum, self.step_count)
+        score = self._compute_score(reason, self.total_progress_m, self.step_index)
 
-        # run metrics (1 sor)
-        self._append_csv(self.run_metrics_path, [self.step_count, reason, f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}", f"{dist_goal:.4f}", 
-                                                 f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}"])
+        # run CSV
+        self._append_csv_row(self.run_metrics_csv,[self.step_index,reason,f"{self.episode_vx_max:.4f}",f"{self.episode_cost_weight:.4f}",
+                                                   f"{goal_distance_m:.4f}",f"{min_range_m:.4f}",f"{self.total_progress_m:.4f}",
+                                                   f"{self.total_energy:.4f}",f"{score:.4f}"])
 
-        # global metrics (1 sor)
-        self._append_csv(self.global_metrics_path, [os.path.basename(self.run_dir), self.step_count, reason, f"{self.current_offset:.4f}", f"{self.current_smooth:.4f}", 
-                                                    f"{dist_goal:.4f}", f"{min_range:.4f}", f"{self.progress_sum:.4f}", f"{score:.4f}", model_path])
+        # global CSV
+        self._append_csv_row(self.global_metrics_csv,[os.path.basename(self.run_dir),self.step_index,reason,f"{self.episode_vx_max:.4f}",
+                                                      f"{self.episode_cost_weight:.4f}",f"{goal_distance_m:.4f}",f"{min_range_m:.4f}",
+                                                      f"{self.total_progress_m:.4f}",f"{self.total_energy:.4f}",f"{score:.4f}",model_path])
 
-        # best frissítés (ha van mentett modell)
+        # best frissítés (csak goal esetén)
         if model_path and os.path.exists(model_path):
-            self._maybe_update_best(reason, self.step_count, min_range, self.progress_sum, score, model_path)
+            self._maybe_update_best_model( reason=reason,steps=self.step_index,min_range_m=min_range_m,progress_m=self.total_progress_m,
+                                          energy=self.total_energy,score=score,model_path=model_path,)
 
-
-        self.get_logger().info(f"[EP END] steps={self.step_count} reason={reason} progress={self.progress_sum:.3f} score={score:.2f}")
+        self.get_logger().info(f"[EP END] steps={self.step_index} reason={reason} progress={self.total_progress_m:.3f} energy={self.total_energy:.3f} score={score:.2f}")
         self.get_logger().info("Leáll (1 launch = 1 epizód).")
         rclpy.shutdown()
 
-    def _find_latest_model_in_run(self) -> str:
+    def _find_latest_model_in_run_dir(self):
         try:
-            files = [f for f in os.listdir(self.run_dir) if f.endswith(".pth")]
-            files = [f for f in files if f != "latest.pth"]
+            model_files = [f for f in os.listdir(self.run_dir) if f.endswith(".pth")]
+            model_files = [f for f in model_files if f != "latest.pth"]
             
-            if not files:
+            if not model_files:
                 return ""
             
-            files.sort(key=lambda x: os.path.getmtime(os.path.join(self.run_dir, x)))
+            model_files.sort(key=lambda fn: os.path.getmtime(os.path.join(self.run_dir, fn)))
             
-            return os.path.join(self.run_dir, files[-1])
+            return os.path.join(self.run_dir, model_files[-1])
         
         except Exception:
             return ""
 
-    def _score(self, reason: str, progress: float, steps: int):
-        # cél: goal legyen előny, collision nagy bünti
-        
+    def _compute_score(self, reason: str, progress_m: float, steps: int):
         if reason == "goal":
-            return 1000.0 + progress - 0.1 * steps
+            return 1000.0 + progress_m - 0.1 * steps
         
         if reason == "collision":
-            return -1000.0 + progress - 0.1 * steps
+            return -1000.0 + progress_m - 0.1 * steps
         
-        # timeout / egyéb
-        return progress - 0.1 * steps
+        return progress_m - 0.1 * steps
 
-    def _read_best_row(self):
-        """
-        Visszaadja a best_metrics.csv utolsó (legjobbként eltárolt) sorát.
-        Ha még nincs best, None.
-        """
-        if not os.path.exists(self.best_metric_path):
-            return None
-
-        with open(self.best_metric_path, "r", newline="") as f:
-            rows = list(csv.reader(f))
-
-        if len(rows) < 2:   # csak header van
-            return None
-
-        return rows[-1]
-        
-    def _maybe_update_best(self,reason: str, steps: int, min_range: float, progress: float, score: float,model_path: str):
-        #csak GOAL-ból választunk best-et
+    def _maybe_update_best_model(self,reason: str,steps: int,min_range_m: float,progress_m: float,energy: float,score: float,model_path: str):
         if reason != "goal":
             return
 
-        best_row = self._read_best_row()
-
-        # Ha még nincs best: ez az első goal - automatikusan best
+        best_row = self._read_last_csv_row_as_dict(self.best_metrics_csv)
         if best_row is None:
-            self.save_as_best(steps, min_range, progress, score, model_path)
+            self._save_as_best(steps, min_range_m, progress_m, energy, score, model_path)
             return
 
-        # best_row mezők a header alapján:
-        # ["futas_azonosito","lepesek_szama","befejezes_oka","legkozelebbi_akadaly_tavolsag","ossz_haladas","kapott_pontszam","forras_modell"]
-        best_steps = int(best_row[1])
-        best_min_range = float(best_row[3])
+        # Biztosabb: kulcs alapján olvasunk, nem index alapján
+        best_steps = int(best_row["lepesek_szama"])
+        best_min_range = float(best_row["legkozelebbi_akadaly_tavolsag"])
+        best_energy = float(best_row["sebessegvaltozas_energia"])
 
-        # kevesebb lépés = jobb
+        # 1) Elsődleges: kevesebb lépés
         if steps < best_steps:
-            self.save_as_best(steps, min_range, progress, score, model_path)
+            self._save_as_best(steps, min_range_m, progress_m, energy, score, model_path)
             return
-
-        # ha több lépés, nem jobb
         if steps > best_steps:
             return
 
-        # döntetlen: nagyobb min_range = jobb
-        if min_range > best_min_range:
-            self.save_as_best(steps, min_range, progress, score, model_path)
+        # 2) Ha lépésszám egyezik: kisebb energia a jobb
+        if energy < best_energy:
+            self._save_as_best(steps, min_range_m, progress_m, energy, score, model_path)
+            return
+        if energy > best_energy:
             return
 
-        # ha min_range se jobb, akkor nem frissítünk
-        return
+        # 3) Ha energia is egyezik: nagyobb min_range a jobb
+        if min_range_m > best_min_range:
+            self._save_as_best(steps, min_range_m, progress_m, energy, score, model_path)
 
-
-
-    # State
-    def build_state(self, odom: Odometry, scan: LaserScan, path: Path):
-        # robot pozíció map-ben (mert a path is map-ben van!)
-        robot_xy = self.robot_xy_in_map(odom)
-        if robot_xy[0] is None:
-            
-            # nincs TF -> ne számolj hülyeséget
-            return None, None
-
-        robot_x, robot_y = robot_xy
-
-        robot_speed = float(odom.twist.twist.linear.x)
-        robot_turn_speed = float(odom.twist.twist.angular.z)
-
-        goal_x = float(path.poses[-1].pose.position.x)
-        goal_y = float(path.poses[-1].pose.position.y)
-        distance_goal = math.hypot(goal_x - robot_x, goal_y - robot_y)
-
-        ranges = np.array(scan.ranges, dtype=np.float32)
-        ranges = np.where(np.isfinite(ranges), ranges, self.lidar_max_range)
-        ranges = np.clip(ranges, 0.0, self.lidar_max_range)
-
-        if len(ranges) == 0:
-            lidar_vector = [1.0] * self.lidar_bins
-            min_range = float(self.lidar_max_range)
-        else:
-            min_range = float(np.min(ranges))
-            total_lidar_points = len(ranges)
-            points_per_bin = max(1, total_lidar_points // self.lidar_bins)
-
-            lidar_vector = []
-            for i in range(self.lidar_bins):
-                start_index = i * points_per_bin
-                end_index = min(total_lidar_points, (i + 1) * points_per_bin)
-
-                if start_index < total_lidar_points:
-                    min_distance_i = float(np.min(ranges[start_index:end_index]))
-                else:
-                    min_distance_i = self.lidar_max_range
-
-                lidar_vector.append(min_distance_i / self.lidar_max_range)
-                
-        cross_track_error = self.calc_cross_track_error_map_xy(robot_x, robot_y, path)
-        
-        norm_goal_distance = min(distance_goal / 20.0, 1.0)          # 20m felett 1.0
-        norm_cross_track_error   = min(cross_track_error / 2.0, 1.0)       # 2m felett 1.0
-
-        norm_linear_speed  = np.clip(robot_speed / 1.0, -1.0, 1.0)      # ha ~1 m/s a max
-        norm_angular_speed  = np.clip(robot_turn_speed / 1.5, -1.0, 1.0) # ha ~1.5 rad/s a max
-
-        norm_min_lidar_range  = np.clip(min_range / self.lidar_max_range, 0.0, 1.0)
-
-        state = np.array([norm_goal_distance, norm_linear_speed , norm_angular_speed , norm_min_lidar_range ,
-                          norm_cross_track_error ] + lidar_vector, dtype=np.float32)
-                
-        info = {"distance_goal": float(distance_goal), "min_range": float(min_range), "cross_track_error": float(cross_track_error)}
-        
-        return state, info
-    
-    def calc_cross_track_error_map_xy(self, robot_x: float, robot_y: float, path: Path):
-        """Távolság a robot (map) és a Path legközelebbi pontja között (méterben)."""
-
-        if path is None or len(path.poses) == 0:
-            return 0.0
-
-        min_distance_meter  = 1e9
-        for pose_stamped in path.poses:
-            path_point_x = float(pose_stamped.pose.position.x)  # map
-            path_point_y = float(pose_stamped.pose.position.y)  # map
-            distance_meter = math.hypot(path_point_x - robot_x, path_point_y - robot_y)
-            
-            if distance_meter < min_distance_meter :
-                min_distance_meter  = distance_meter
-
-        return float(min_distance_meter )
-    
-    def save_as_best(self, steps: int, min_range: float, progress: float, score: float, model_path: str):
+    def _save_as_best(self,steps: int,min_range_m: float,progress_m: float,energy: float,score: float,model_path: str):
         try:
             shutil.copyfile(model_path, self.best_model_path)
-
-            self._append_csv(self.best_metric_path, [os.path.basename(self.run_dir), steps,"goal", f"{min_range:.4f}", f"{progress:.4f}", f"{score:.4f}", model_path])
-
-            self.get_logger().info(f"A best frissült! steps={steps} min_range={min_range:.3f} -> {self.best_model_path}")
+            self._append_csv_row(self.best_metrics_csv,[os.path.basename(self.run_dir),steps,"goal",f"{min_range_m:.4f}",f"{progress_m:.4f}",
+                                                        f"{energy:.4f}",f"{score:.4f}",model_path,])
+            
+            self.get_logger().info(f"A best frissült! steps={steps} energy={energy:.3f} min_range={min_range_m:.3f} - {self.best_model_path}")
             
         except Exception as e:
             self.get_logger().error(f"A best mentése során hiba történt: {e}")
-            
-            
-    def robot_xy_in_map(self, odom: Odometry):
-        """
-        Odomból robot pozícióját átszámolja map frame-be TF2-vel.
-        Visszaad (x_map, y_map) vagy (None, None) tupleült ha nincs TF.
-        """
+
+    def _build_state_and_info(self, odom: Odometry, scan: LaserScan, path: Path):
+        robot_xy = self._get_robot_xy_in_map(odom)
+        if robot_xy[0] is None:
+            return None, None
+
+        robot_x, robot_y = robot_xy
+        robot_linear_speed = float(odom.twist.twist.linear.x)
+        robot_angular_speed = float(odom.twist.twist.angular.z)
+
+        goal_x = float(path.poses[-1].pose.position.x)
+        goal_y = float(path.poses[-1].pose.position.y)
+        distance_to_goal_m = math.hypot(goal_x - robot_x, goal_y - robot_y)
+
+        scan_ranges = np.array(scan.ranges, dtype=np.float32)
+        scan_ranges = np.where(np.isfinite(scan_ranges), scan_ranges, self.lidar_max_range_m)
+        scan_ranges = np.clip(scan_ranges, 0.0, self.lidar_max_range_m)
+
+        if len(scan_ranges) == 0:
+            lidar_bins_norm = [1.0] * self.lidar_bins
+            min_range_m = float(self.lidar_max_range_m)
+        else:
+            min_range_m = float(np.min(scan_ranges))
+            total_points = len(scan_ranges)
+            points_per_bin = max(1, total_points // self.lidar_bins)
+
+            lidar_bins_norm = []
+            for bin_index in range(self.lidar_bins):
+                start = bin_index * points_per_bin
+                end = min(total_points, (bin_index + 1) * points_per_bin)
+                if start < total_points:
+                    min_in_bin = float(np.min(scan_ranges[start:end]))
+                else:
+                    min_in_bin = float(self.lidar_max_range_m)
+                lidar_bins_norm.append(min_in_bin / self.lidar_max_range_m)
+
+        cross_track_error_m = self._compute_cross_track_error(robot_x, robot_y, path)
+
+        # normalizálás
+        norm_goal_dist = min(distance_to_goal_m / 20.0, 1.0)
+        norm_cte = min(cross_track_error_m / 2.0, 1.0)
+        norm_v = np.clip(robot_linear_speed / 1.0, -1.0, 1.0)
+        norm_w = np.clip(robot_angular_speed / 1.5, -1.0, 1.0)
+        norm_min_r = np.clip(min_range_m / self.lidar_max_range_m, 0.0, 1.0)
+
+        state = np.array([norm_goal_dist, norm_v, norm_w, norm_min_r, norm_cte] + lidar_bins_norm,dtype=np.float32)
+
+        info = {"distance_goal": float(distance_to_goal_m),"min_range": float(min_range_m),"cross_track_error": float(cross_track_error_m)}
+
+        return state, info
+
+    def _compute_cross_track_error(self, robot_x: float, robot_y: float, path: Path):
+        if path is None or len(path.poses) == 0:
+            return 0.0
+
+        best_distance = 1e9
+        for pose_stamped in path.poses:
+            px = float(pose_stamped.pose.position.x)
+            py = float(pose_stamped.pose.position.y)
+            d = math.hypot(px - robot_x, py - robot_y)
+            if d < best_distance:
+                best_distance = d
+        return float(best_distance)
+
+    def _get_robot_xy_in_map(self, odom: Odometry) :
         odom_point = PointStamped()
-        odom_point.header.frame_id = odom.header.frame_id  # "odom"
+        odom_point.header.frame_id = odom.header.frame_id
         now = self.get_clock().now()
         odom_point.header.stamp = now.to_msg()
 
@@ -515,9 +594,8 @@ class PPOTrainer(Node):
         odom_point.point.z = 0.0
 
         try:
-            tf = self.tf_buffer.lookup_transform("map",odom_point .header.frame_id, now,timeout=Duration(seconds=0.2))
-            map_point= do_transform_point(odom_point , tf)
-            
+            transform = self.tf_buffer.lookup_transform("map",odom_point.header.frame_id, now,timeout=Duration(seconds=0.2))
+            map_point = do_transform_point(odom_point, transform)
             return float(map_point.point.x), float(map_point.point.y)
 
         except Exception as e:
@@ -525,8 +603,7 @@ class PPOTrainer(Node):
             return None, None
 
 
-
-def main(args=None):
+def main(args=None) -> None:
     rclpy.init(args=args)
     node = PPOTrainer()
     rclpy.spin(node)

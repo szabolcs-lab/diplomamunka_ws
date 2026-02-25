@@ -121,7 +121,7 @@ local_costmap:
         enabled: true
         observation_sources: "scan"
         scan:
-          topic: "lidar"          # a 2D lidar ROS topic neve
+          topic: "lidar"          # a 2D lidar ROS topic neve "lidar"
           clearing: true
           marking: true
           data_type: "LaserScan"

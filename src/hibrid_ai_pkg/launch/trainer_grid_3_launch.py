@@ -20,7 +20,7 @@ def generate_launch_description():
     path_planner_parameter_file = os.path.join(package_dir, 'configs', 'd_star_lite_path_planner_params.yaml')
     nav2_bringup_launch = os.path.join(package_dir, 'launch', 'nav2_bringup.launch.py')
 
-    # 1) map -> /map
+    # map - /map
     map_publication = Node(
         package='hibrid_ai_pkg',
         executable='map_publication',
@@ -29,7 +29,7 @@ def generate_launch_description():
         parameters=[map_publication_parameter_file, {'map_file': full_map_path}, {'use_sim_time': True}]
     )
 
-    # 2) D* Lite -> /planned_path_dilated
+    # D* Lite - /planned_path_dilated
     d_star_lite_path_planner = Node(
         package='hibrid_ai_pkg',
         executable='d_star_lite_path_planner',
@@ -38,21 +38,7 @@ def generate_launch_description():
         parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}, {'use_sim_time': True}],
     )
 
-    # 3) Path finomító: /planned_path_dilated -> /planned_path_refined
-    trajectory_smoother = Node(
-        package='hibrid_ai_pkg',
-        executable='trajectory_smoother',
-        name='trajectory_smoother',
-        output='screen',
-        parameters=[{
-            'path_in': '/planned_path_dilated',
-            'path_out': '/planned_path_smoother',
-            'params_topic': '/smoother_params',
-            'use_sim_time': True
-        }]
-    )
-
-    # 4) PPO trainer
+    # PPO trainer
     ppo_trainer = Node(
         package='hibrid_ai_pkg',
         executable='ppo_trainer',
@@ -63,46 +49,44 @@ def generate_launch_description():
             'control_hz': 10.0,
             'max_steps': 2600, #1400, 1800
 
-            'goal_tolerance': 0.6, #0.8, 0,5, 0,6
+            'goal_tolerance': 0.6, #0.8, 0.5, 0.6, 0.7
             'collision_distance': 0.18,
 
             'lidar_bins': 12,
             'lidar_max_range': 6.0,
-            'max_offset_m': 0.10,
-
-            # óvatos eltolás limit
-            'offset_limit': 0.05,
-            
-            'smooth_max': 0.25, #0.25, 0.20 (ezzel rosszabb lett a lépés), 0,28 (ezzel rosszabb lett a lépés), 0.30
 
             'odom_topic': '/odom',
             'scan_topic': '/scan',
-            'path_topic': '/planned_path_smoother',
-            'params_topic': '/smoother_params',
+            'path_topic': '/planned_path_dilated',
 
             # hol hozza létre az új run mappát
             'runs_dir': './ppo_runs/grid_3',
             'min_steps_for_goal': 50,
             
+            'cmd_vel_topic': '/cmd_vel',
+            'energy_weight': 0.005,
+            'stuck_window_steps': 80,
+            'stuck_delta_eps': 0.001
+            
         }]
     )
 
 
-    # 5) Nav2 bringup (benne van a Nav2PathClient + controller_server stb.)
+    # Nav2 bringup (benne van a Nav2PathClient + controller_server stb.)
     nav2_bringup = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(nav2_bringup_launch)
     )
 
-    # 6) TF broadcaster (odom -> base_link)
+    # TF broadcaster (odom - base_link)
     tf_broadcaster = Node(
         package='hibrid_ai_pkg',
         executable='tf_broadcaster',
         name='tf_broadcaster',
         output='screen',
-        parameters=[{'odom_topic': '/odom'},{'use_sim_time': True}]
+        parameters=[{'odom_topic': '/odom'}, {'use_sim_time': True}]
     )
 
-    # 7) ROS /cmd_vel -> Ignition /cmd_vel
+    # ROS /cmd_vel - Ignition /cmd_vel
     gz_cmd_vel_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -111,7 +95,7 @@ def generate_launch_description():
         arguments=['/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist']
     )
 
-    # 8) Ignition odom -> ROS /odom
+    # Ignition odom - ROS /odom
     gz_bridge_odom = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -121,7 +105,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # 9) Ignition lidar -> ROS /scan
+    # Ignition lidar - ROS /scan
     gz_bridge_lidar = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -150,7 +134,6 @@ def generate_launch_description():
         map_file_arg,
         map_publication,
         d_star_lite_path_planner,
-        trajectory_smoother,
         ppo_trainer,
         #rviz,
         nav2_bringup,

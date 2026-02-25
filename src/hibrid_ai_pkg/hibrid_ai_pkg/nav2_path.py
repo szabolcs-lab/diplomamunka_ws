@@ -21,7 +21,7 @@ class Nav2PathClient(Node):
         self.get_logger().info('Nav2 Path Client node indul...')
 
         # paramétert beolvasássuk
-        self.declare_parameter('path_topic', 'planned_path_dilated')
+        self.declare_parameter('path_topic', '/planned_path_dilated')
         path_topic = self.get_parameter('path_topic').get_parameter_value().string_value
         
         # Preempt szűrők

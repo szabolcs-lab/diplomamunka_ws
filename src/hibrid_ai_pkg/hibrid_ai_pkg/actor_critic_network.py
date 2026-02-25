@@ -57,16 +57,3 @@ class ActorCriticNetwork(nn.Module):
             self.sigma = float(data["sigma"])
 
         print(f"Betöltve: {self.save_file}")
-
-
-def action_to_shaping(action_tensor, max_offset_meter: float = 0.20):
-    if action_tensor.dim() == 2:
-        action_tensor = action_tensor.squeeze(0)
-
-    offset_action  = float(torch.clamp(action_tensor[0], -1.0, 1.0).item())
-    smooth_action  = float(torch.clamp(action_tensor[1], -1.0, 1.0).item())
-
-    path_offset_meter  = offset_action  * max_offset_meter
-    smoothing_strength  = (smooth_action  + 1.0) * 0.5
-
-    return path_offset_meter , smoothing_strength

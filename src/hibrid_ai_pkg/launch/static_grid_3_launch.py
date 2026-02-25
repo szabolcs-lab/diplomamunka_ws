@@ -13,7 +13,7 @@ def generate_launch_description():
     simulation_resources_dir = get_package_share_directory('simulation_resources_pkg')
     simulation_resources_maps_dir = os.path.join(simulation_resources_dir, 'maps')
 
-    map_file_arg = DeclareLaunchArgument('map_file', default_value='occupancy_grid_3.csv')
+    map_file_arg = DeclareLaunchArgument('map_file', default_value='occupancy_grid_1.csv')
     full_map_path = PathJoinSubstitution([simulation_resources_maps_dir, LaunchConfiguration('map_file')])
 
     map_publication_parameter_file = os.path.join(package_dir, 'configs', 'map_publication_params.yaml')
@@ -36,18 +36,6 @@ def generate_launch_description():
         parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}, {'use_sim_time': True}],
     )
 
-    trajectory_smoother = Node(
-        package='hibrid_ai_pkg',
-        executable='trajectory_smoother',
-        name='trajectory_smoother',
-        output='screen',
-        parameters=[{
-            'path_in': '/planned_path_dilated',
-            'path_out': '/planned_path_smoother',
-            'params_topic': '/smoother_params',
-            'use_sim_time': True
-        }]
-    )
 
     ppo_product = Node(
         package='hibrid_ai_pkg',
@@ -55,28 +43,24 @@ def generate_launch_description():
         name='ppo_product',
         output='screen',
         parameters=[{
-            'train_mode': False,
-            'control_hz': 10.0,
-
-            'max_steps': 2600,
-            'goal_tolerance': 0.8,
-            'collision_distance': 0.18,
-            'min_steps_for_goal': 50,
+            'model_path': './ppo_runs/grid_3/best_latest.pth',
+            'control_hz': 2.0,
 
             'lidar_bins': 12,
             'lidar_max_range': 6.0,
 
-            'max_offset_m': 0.10,
-            'offset_limit': 0.05,
-            'smooth_max': 0.25,
-
             'odom_topic': '/odom',
             'scan_topic': '/scan',
-            'path_topic': '/planned_path_smoother',
-            'params_topic': '/smoother_params',
+            'path_topic': '/planned_path_dilated',
 
-            'runs_dir': './ppo_runs/grid_3',
-            'model_path': './ppo_runs/grid_3/best_latest.pth',
+            'controller_server_node': '/controller_server',
+
+            'vx_max_min': 0.20,
+            'vx_max_max': 0.60,
+            'cost_weight_min': 0.50,
+            'cost_weight_max': 8.00,
+
+            'use_sim_time': True,
         }]
     )
 
@@ -151,7 +135,6 @@ def generate_launch_description():
         map_file_arg,
         map_publication,
         d_star_lite_path_planner,
-        trajectory_smoother,
         ppo_product,
         nav2_bringup,
         gz_cmd_vel_bridge,

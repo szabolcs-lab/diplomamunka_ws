@@ -31,7 +31,7 @@ setup(
             'tf_broadcaster = hibrid_ai_pkg.tf_broadcaster:main',
             'trajectory_smoother = hibrid_ai_pkg.trajectory_smoother:main',
             'ppo_trainer = hibrid_ai_pkg.ppo_trainer:main',
-            'ppo_product = hibrid_ai_pkg.ppo_productr:main'
+            'ppo_product = hibrid_ai_pkg.ppo_product:main'
         ],
     },
 )

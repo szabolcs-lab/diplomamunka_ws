@@ -16,7 +16,7 @@ def generate_launch_description():
         executable='nav2_path',
         name='nav2_path_client',
         output='screen',
-        parameters=[{'path_topic': '/planned_path_smoother'}, {'use_sim_time': True}, {'min_preempt_dt': 2.0}, 
+        parameters=[{'path_topic': '/planned_path_dilated'}, {'use_sim_time': True}, {'min_preempt_dt': 2.0}, 
                     {'goal_shift_thresh': 0.30}, {'goal_reached_tolerance': 0.8,}])
 
     # 2) Nav2 controller_server

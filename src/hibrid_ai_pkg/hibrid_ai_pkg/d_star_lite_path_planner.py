@@ -33,8 +33,8 @@ class DStarLitePathPlanner(Node):
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
         self.map_subscription = self.create_subscription(OccupancyGrid, 'map', self.map_callback, qos)
-        self.path_pub = self.create_publisher(Path, 'planned_path_dilated', qos)
-        self.path_debug_pub = self.create_publisher(Path, 'dstar_debug_path', qos)
+        self.path_pub = self.create_publisher(Path, '/planned_path_dilated', qos)
+        self.path_debug_pub = self.create_publisher(Path, '/dstar_debug_path', qos)
         
         self.timer = self.create_timer(3.0, self.republish_path) #0.5
 
