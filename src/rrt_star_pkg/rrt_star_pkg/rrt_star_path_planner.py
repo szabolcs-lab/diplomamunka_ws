@@ -123,7 +123,7 @@ class RRTStarPathPlanner(Node):
                     self.initial_path_length = path_length # a visszaadott útvonalat beállítjuk
                     self.get_logger().info(f"planned cells: {len(path_cells)}")
                 else:
-                    self.get_logger().warn("RRT* nem talált útvonalat... (initial)") # ha nincs útvonal kiírjuk
+                    self.get_logger().error("RRT* nem talált útvonalat... (initial)") # ha nincs útvonal kiírjuk
                 
                 # lekérjük a cpu és ram használatot
                 used_ram, cpu_percent = self.measure_resources()
