@@ -67,7 +67,7 @@ def generate_launch_description():
             'energy_weight': 0.005,
             'stuck_window_steps': 80,
             'stuck_delta_eps': 0.001
-            
+                        
         }]
     )
 

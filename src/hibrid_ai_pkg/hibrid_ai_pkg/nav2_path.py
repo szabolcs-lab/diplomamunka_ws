@@ -26,12 +26,12 @@ class Nav2PathClient(Node):
         
         # Preempt szűrők
         self.declare_parameter("min_preempt_dt", 2.0)      # sec
-        self.declare_parameter("goal_shift_thresh", 0.30)  # m
-        self.declare_parameter("goal_reached_tolerance", 0.8)  # m
-        
-
         self.min_preempt_dt = float(self.get_parameter("min_preempt_dt").value)
+        
+        self.declare_parameter("goal_shift_thresh", 0.30)  # m
         self.goal_shift_thresh = float(self.get_parameter("goal_shift_thresh").value)
+        
+        self.declare_parameter("goal_reached_tolerance", 0.8)  # m  
         self.goal_reached_tolerance = float(self.get_parameter("goal_reached_tolerance").value)
 
         self._last_goal_sent_time = 0.0
@@ -85,7 +85,7 @@ class Nav2PathClient(Node):
             return float(x), float(y)
 
         except TransformException as e:
-            self.get_logger().warn(f"TF hiba (map-base_link): {e}")
+            self.get_logger().error(f"TF hiba (map-base_link): {e}")
             return None, None
         
     def robot_close_to_path_goal(self, path_msg: Path):
@@ -145,6 +145,7 @@ class Nav2PathClient(Node):
 
     def should_preempt(self, new_path: Path) -> bool:
         """Eldönti, hogy érdemes-e most preemptelni (idő + goal változás)."""
+        
         now = time.time()
 
         #túl hamar? - ne

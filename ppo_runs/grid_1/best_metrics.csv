@@ -1,0 +1,5 @@
+futas_azonosito,lepesek_szama,befejezes_oka,legkozelebbi_akadaly_tavolsag,ossz_haladas,sebessegvaltozas_energia,kapott_pontszam,forras_modell
+run_20260226_074010,1802,goal,6.0000,27.3940,10.0451,847.1940,./ppo_runs/grid_1/run_20260226_074010/latest_2026-02-26_074010.pth
+run_20260226_074631,1703,goal,6.0000,27.4106,10.2993,857.1106,./ppo_runs/grid_1/run_20260226_074631/ppo_ep_1.pth
+run_20260226_082005,1695,goal,6.0000,27.4117,10.2645,857.9117,./ppo_runs/grid_1/run_20260226_082005/ppo_ep_1.pth
+run_20260226_083920,1695,goal,6.0000,27.4139,10.1438,857.9139,./ppo_runs/grid_1/run_20260226_083920/ppo_ep_1.pth
