@@ -42,22 +42,18 @@ def generate_launch_description():
         name="ppo_product",
         output="screen",
         parameters=[{
-            "model_path": "./ppo_runs/grid_1/best_latest.pth",
-
+            "runs_dir": "./ppo_runs/grid_1",
+            "model_file": "best_latest.pth",
             "lidar_bins": 12,
             "lidar_max_range": 6.0,
-
             "odom_topic": "/odom",
             "scan_topic": "/scan",
             "path_topic": "/planned_path_dilated",
-
             "controller_server_node": "/controller_server",
-
             "vx_max_min": 0.20,
             "vx_max_max": 0.60,
             "cost_weight_min": 0.50,
             "cost_weight_max": 8.00,
-
             "use_sim_time": True,
         }]
     )

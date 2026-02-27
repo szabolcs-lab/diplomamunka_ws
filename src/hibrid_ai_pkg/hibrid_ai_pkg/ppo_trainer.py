@@ -51,13 +51,11 @@ class PPOTrainer(Node):
         self.declare_parameter("lidar_max_range", 6.0)
         self.lidar_max_range_m = float(self.get_parameter("lidar_max_range").value)
         
-        #######################
         self.declare_parameter("near_obstacle_distance", 0.7)   #0.6 m
         self.near_obstacle_distance_m = float(self.get_parameter("near_obstacle_distance").value)
         
         self.declare_parameter("near_obstacle_weight", 3.0) #2.0
         self.near_obstacle_weight = float(self.get_parameter("near_obstacle_weight").value)
-        ######################
 
         self.declare_parameter("odom_topic", "/odom")
         self.odom_topic = str(self.get_parameter("odom_topic").value)
@@ -153,23 +151,26 @@ class PPOTrainer(Node):
         qos_path.reliability = ReliabilityPolicy.RELIABLE
         qos_path.durability = DurabilityPolicy.TRANSIENT_LOCAL
         
+        self.sub_path = self.create_subscription(Path, self.path_topic, self.path_callback, qos_path)
+        
         qos_cmd = QoSProfile(depth=20)
         qos_cmd.reliability = ReliabilityPolicy.RELIABLE
         qos_cmd.durability = DurabilityPolicy.VOLATILE
         
+        self.sub_cmd = self.create_subscription(Twist, self.cmd_vel_topic, self.cmd_vel_callback, qos_cmd)
+        
         qos_scan = QoSProfile(depth=10)
         qos_scan.reliability = ReliabilityPolicy.RELIABLE
         qos_scan.durability = DurabilityPolicy.VOLATILE
+        
+        self.sub_scan = self.create_subscription(LaserScan, self.scan_topic, self.scan_callback, qos_scan)
         
         qos_odom = QoSProfile(depth=20)
         qos_odom.reliability = ReliabilityPolicy.RELIABLE
         qos_odom.durability = DurabilityPolicy.VOLATILE
 
         self.sub_odom = self.create_subscription(Odometry, self.odom_topic, self.odom_callback, qos_odom)
-        self.sub_scan = self.create_subscription(LaserScan, self.scan_topic, self.scan_callback, qos_scan)
-        self.sub_path = self.create_subscription(Path, self.path_topic, self.path_callback, qos_path)
-        self.sub_cmd = self.create_subscription(Twist, self.cmd_vel_topic, self.cmd_vel_callback, qos_cmd)
-
+        
         timer_period_s = 1.0 / max(1e-6, self.control_hz)
         self.timer = self.create_timer(timer_period_s, self._on_control_tick)
 
@@ -329,7 +330,8 @@ class PPOTrainer(Node):
                 done = True
                 reason = "timeout"        
         else:          
-            reward = (2.0 * delta_goal_distance_m- 0.01 - 0.15 * cross_track_error_m - self.energy_weight * energy_step-near_wall_penalty )
+            # reward = (2.0 * delta_goal_distance_m- 0.01 - 0.15 * cross_track_error_m - self.energy_weight * energy_step-near_wall_penalty )
+            reward = (2.0 * delta_goal_distance_m- 0.005 - 0.25 * cross_track_error_m - self.energy_weight * energy_step-near_wall_penalty )
 
         if self.is_training:
             self.ppo_trainer.store(state,self.current_action, self.current_action_logprob, float(reward), bool(done))
