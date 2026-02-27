@@ -12,7 +12,7 @@
 ## A repository letöltése:
 
 ```bash 
-git clone -b dynamic-obstacle https://github.com/szabolcs-lab/diplomamunka_ws.git
+git clone -b ppo https://github.com/szabolcs-lab/diplomamunka_ws.git
 ```
 
 ## A szükséges ROS2 függőségek:
@@ -64,7 +64,7 @@ cd ~/diplomamunka_ws/src/simulation_resources_pkg/worlds
 ign gazebo -r custom_world_3.sdf
 ```
 
-## Algoritmusok indítása:
+## Klasszikus algoritmusok indítása:
 
 - Egy másik terminálban:
 
@@ -168,3 +168,81 @@ vagy
 ```bash 
 ros2 launch rrt_star_pkg dynamic_launch.py map_file:=occupancy_grid_3.csv
 ```
+
+## Hibrid-D*Lite-NAV2-PPO algoritmus edzés:
+
+- Egy másik terminálban:
+
+```bash
+cd ~/diplomamunka_ws
+source install/setup.bash
+```
+
+- map_file lehet: occupancy_grid_1.csv, occupancy_grid_2.csv, occupancy_grid_3.csv;
+
+```bash 
+ros2 launch hibrid_ai_pkg trainer_grid_1_launch.py map_file:=occupancy_grid_1.csv
+```
+vagy
+
+```bash 
+ros2 launch hibrid_ai_pkg trainer_grid_2_launch.py map_file:=occupancy_grid_2.csv
+```
+vagy
+
+```bash 
+ros2 launch hibrid_ai_pkg trainer_grid_3_launch.py map_file:=occupancy_grid_3.csv
+```
+
+## Hibrid-D*Lite-NAV2-PPO algoritmus futattás - statikus:
+
+- Egy másik terminálban:
+
+```bash
+cd ~/diplomamunka_ws
+source install/setup.bash
+```
+
+- map_file lehet: occupancy_grid_1.csv, occupancy_grid_2.csv, occupancy_grid_3.csv;
+
+```bash 
+ros2 launch hibrid_ai_pkg static_grid_1_launch.py map_file:=occupancy_grid_1.csv
+```
+vagy
+
+```bash 
+ros2 launch hibrid_ai_pkg static_grid_2_launch.py map_file:=occupancy_grid_2.csv
+```
+vagy
+
+```bash 
+ros2 launch hibrid_ai_pkg static_grid_3_launch.py map_file:=occupancy_grid_3.csv
+```
+
+## Hibrid-D*Lite-NAV2-PPO algoritmus futattás - dinamikus:
+
+- Egy másik terminálban:
+
+```bash
+cd ~/diplomamunka_ws
+source install/setup.bash
+```
+
+- map_file lehet: occupancy_grid_1.csv, occupancy_grid_2.csv, occupancy_grid_3.csv;
+
+```bash 
+ros2 launch hibrid_ai_pkg dynamic_grid_1_launch.py map_file:=occupancy_grid_1.csv
+```
+vagy
+
+```bash 
+ros2 launch hibrid_ai_pkg dynamic_grid_2_launch.py map_file:=occupancy_grid_2.csv
+```
+vagy
+
+```bash 
+ros2 launch hibrid_ai_pkg dynamic_grid_3_launch.py map_file:=occupancy_grid_3.csv
+```
+
+
+
