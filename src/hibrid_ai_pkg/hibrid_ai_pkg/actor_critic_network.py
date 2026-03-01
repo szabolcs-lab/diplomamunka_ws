@@ -4,7 +4,7 @@ from torch.distributions import Normal
 
 
 class ActorCriticNetwork(nn.Module):
-    def __init__(self,n_inputs: int, n_actions: int = 2, save_file: str = "ppo.pt",sigma: float = 0.03 ): #0.05, 0.1
+    def __init__(self,n_inputs: int, n_actions: int = 2, save_file: str = "ppo.pt",sigma: float = 0.02 ): #0.05, 0.1, 0.03
         super().__init__()
         self.save_file = save_file
         self.sigma = sigma
