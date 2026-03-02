@@ -1,27 +1,15 @@
+import torch
+import torch.nn.functional as F
+from .actor_critic_network import ActorCriticNetwork
+from .ppo_memory import PPOMemory
 import os
 import shutil
 import numpy as np
-import torch
-import torch.nn.functional as F
-
-from .actor_critic_network import ActorCriticNetwork
-from .ppo_memory import PPOMemory
-
 import time
 
 
 class PPOTraining:
-    """
-    PPO (Proximal Policy Optimization) tanítási segédosztály.
-
-    Feladatok:
-      lépésenkéénti tapasztalatok eltárolása (state, action, log_prob, reward, done)
-      epizód végén (vagy elegendő mintaszámnál) policy frissítése PPO-val
-      GAE (Generalized Advantage Estimation) számítása előnyökhöz (advantages) és célértékekhez (returns)
-      modellek mentése futtatásonkét elkülönített mappába
-    """
-
-    def __init__(self, state_dim: int, action_dim: int = 2):
+    def __init__(self, state_dim, action_dim=2):
         # PPO/GAE hiperparaméterek
         self.gamma = 0.99
         self.gae_lambda = 0.95
@@ -36,12 +24,11 @@ class PPOTraining:
         # Minimum lépésszám frissítéshez
         self.min_update_steps = 512 #256 #64
 
-        # Mentés / run mappa - ezt törölnöm kell, majd!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        # Mentés / run mappa - ezt törölnöm kell, majd!!!!!!!!!!!!!!!!!!!!!!!!!!!! spammel
         self.run_id = time.strftime("%Y-%m-%d_%H%M%S")
         self.save_dir = f"./ppo_runs/run_{self.run_id}"
         os.makedirs(self.save_dir, exist_ok=True)
 
-        # Ments gyakorisága
         self.save_gyakorisag = 1
 
         # epizód számláló (run-on belül)
@@ -64,19 +51,13 @@ class PPOTraining:
 
         print(f"PPO run_id={self.run_id} save_dir={self.save_dir}")
 
+
     def store(self, state, action, log_prob, reward, done):
-        """
-        Tapasztalat tárolása a  PPO memóriába.
-
-        Paraméterek:
-          state: megfigyelés / állapot (pl. lidar + célinfo stb.)
-          action: végrehajtott akció (folytonos vektor)
-          log_prob: a policy által számolt log-valószínűség az adott action-re
-          reward: jutalom az adott lépésre
-          done: terminális jelző (epizód vége)
-        """
-        done_flag = 1.0 if bool(done) else 0.0
-
+        if bool(done):
+            done_flag = 1.0
+        else:
+            done_flag = 0.0
+            
         # log_prob - scalar
         if isinstance(log_prob, torch.Tensor):
             log_prob_numpy = log_prob.detach().cpu().numpy()
@@ -96,11 +77,9 @@ class PPOTraining:
 
         self.memory.store_data(state_out, action_out, log_prob_scalar, float(reward), done_flag)
 
+
+    #Epizód vége...
     def finish_episode(self):
-        """
-        Epizód vége.
-        """
-        # epizód számláló nő MINDEN esetben
         self.episode = self.episode + 1
 
         # ha kevés adat van, akkor nem updatelek
@@ -119,10 +98,8 @@ class PPOTraining:
         #memória ürítés
         self.memory.clear_data()
 
+    #PPO policy frissítés GAE advantage-ekkel ...
     def update_policy(self):
-        """
-        PPO policy frissítés a memóriában összegyűjtött rollout adatok alapján.
-        """
         states_tensor = torch.tensor(np.array(self.memory.states), dtype=torch.float32, device=self.device)
         actions_tensor = torch.tensor(np.array(self.memory.actions), dtype=torch.float32, device=self.device)
         old_log_probs_tensor = torch.tensor(np.array(self.memory.log_probs), dtype=torch.float32, device=self.device)
@@ -130,7 +107,7 @@ class PPOTraining:
         reward_numpy = np.array(self.memory.rewards, dtype=np.float32)
         dones_numpy = np.array(self.memory.is_terminals, dtype=np.float32)
 
-        # old_policy - value becslés (critic)
+        # old_policy - value becsls critic
         with torch.no_grad():
             _, value_tensor = self.old_policy(states_tensor)
             value_numpy = value_tensor.squeeze(-1).cpu().numpy()
@@ -175,6 +152,7 @@ class PPOTraining:
         print(f"PPO epizód={self.episode} steps={len(reward_numpy)} avgR={float(np.mean(reward_numpy)):.3f}")
 
 
+    #Generalized Advantage Estimation...
     def gae(self, rewards: np.ndarray, values: np.ndarray, dones: np.ndarray):
         num_steps = len(rewards)
 
@@ -184,7 +162,11 @@ class PPOTraining:
         A_t = 0.0
 
         for i in reversed(range(num_steps)):
-            next_value = 0.0 if i == num_steps - 1 else values[i + 1]
+            if i == num_steps-1:
+                next_value = 0.0
+            else:
+                next_value = values[i + 1]
+                
             non_terminal_mask = 1.0 - dones[i]
 
             td_error = rewards[i] + self.gamma * next_value * non_terminal_mask - values[i]
@@ -195,17 +177,14 @@ class PPOTraining:
 
         return advantages, returns
 
+    #Az old_policy frissítése az aktuális policy paramétereivel...
     def copy_policy(self):
-        """
-        Az old_policy frissítése az aktuális policy paramétereivel.
-        """
         self.old_policy.actor.load_state_dict(self.policy.actor.state_dict())
         self.old_policy.critic.load_state_dict(self.policy.critic.state_dict())
 
+
+    #Policy checkpoint mentése...
     def save(self):
-        """
-        Policy checkpoint mentése.
-        """
         path = os.path.join(self.save_dir, f"ppo_ep_{self.episode}.pth")
 
         old_save_file = self.policy.save_file
@@ -218,7 +197,6 @@ class PPOTraining:
         latest_path = os.path.join(self.save_dir, "latest.pth")
         shutil.copyfile(path, latest_path)
 
-        #run-hoz kötött latest, ha később másolgatnám a mappákat
         latest_run_path = os.path.join(self.save_dir, f"latest_{self.run_id}.pth")
         shutil.copyfile(path, latest_run_path)
 

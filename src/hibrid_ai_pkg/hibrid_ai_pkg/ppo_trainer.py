@@ -482,6 +482,7 @@ class PPOTrainer(Node):
                               self.make_double_param("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
 
         future = self.mppi_set_params_client.call_async(request)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=0.8) # EZ LEHET GONDOT FOG OKOZNI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         if future.result() is None:
             self.get_logger().error("Timeout hiba a paraméterküldésnél...")
