@@ -119,7 +119,7 @@ class PPOTrainer(Node):
 
         self.total_energy = 0.0
         self.previous_cmd_linear_x = None
-        sel_previous_cmd_angular_z = None
+        self.previous_cmd_angular_z = None
 
         self.stuck_steps_count = 0
 
