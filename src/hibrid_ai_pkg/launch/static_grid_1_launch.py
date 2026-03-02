@@ -43,7 +43,7 @@ def generate_launch_description():
         output="screen",
         parameters=[{
             "runs_dir": "./ppo_runs/grid_1",
-            "model_file": "best_latest.pth",
+            "model_file": "./ppo_runs/grid_1/best_latest.pth",
             "lidar_bins": 12,
             "lidar_max_range": 6.0,
             "odom_topic": "/odom",

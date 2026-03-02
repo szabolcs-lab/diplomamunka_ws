@@ -42,19 +42,6 @@ def generate_launch_description():
         parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}, {'use_sim_time': True}],
     )
 
-    trajectory_smoother = Node(
-        package='hibrid_ai_pkg',
-        executable='trajectory_smoother',
-        name='trajectory_smoother',
-        output='screen',
-        parameters=[{
-            'path_in': '/planned_path_dilated',
-            'path_out': '/planned_path_smoother',
-            'params_topic': '/smoother_params',
-            'use_sim_time': True
-        }]
-    )
-
     ppo_product = Node(
         package='hibrid_ai_pkg',
         executable='ppo_product',
@@ -82,7 +69,7 @@ def generate_launch_description():
             'params_topic': '/smoother_params',
 
             'runs_dir': './ppo_runs/grid_1',
-            'model_path': './ppo_runs/grid_1/best_latest.pth',
+            'model_file': './ppo_runs/grid_1/best_latest.pth',
         }]
     )
 
@@ -157,7 +144,6 @@ def generate_launch_description():
         map_file_arg,
         map_publication,
         d_star_lite_path_planner,
-        trajectory_smoother,
         ppo_product,
         nav2_bringup,
         gz_cmd_vel_bridge,
