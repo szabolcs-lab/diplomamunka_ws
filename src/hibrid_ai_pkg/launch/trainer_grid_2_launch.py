@@ -20,7 +20,7 @@ def generate_launch_description():
     path_planner_parameter_file = os.path.join(package_dir, 'configs', 'd_star_lite_path_planner_params.yaml')
     nav2_bringup_launch = os.path.join(package_dir, 'launch', 'nav2_bringup.launch.py')
 
-    # map - /map
+  
     map_publication = Node(
         package='hibrid_ai_pkg',
         executable='map_publication',
@@ -29,7 +29,7 @@ def generate_launch_description():
         parameters=[map_publication_parameter_file, {'map_file': full_map_path}, {'use_sim_time': True}]
     )
 
-    # D* Lite - /planned_path_dilated
+   
     d_star_lite_path_planner = Node(
         package='hibrid_ai_pkg',
         executable='d_star_lite_path_planner',
@@ -38,7 +38,7 @@ def generate_launch_description():
         parameters=[path_planner_parameter_file, {'map_file': full_map_path}, {'scenario': 'static'}, {'use_sim_time': True}],
     )
 
-    # PPO trainer
+
     ppo_trainer = Node(
         package='hibrid_ai_pkg',
         executable='ppo_trainer',
@@ -71,13 +71,10 @@ def generate_launch_description():
         }]
     )
 
+ 
+    nav2_bringup = IncludeLaunchDescription(PythonLaunchDescriptionSource(nav2_bringup_launch))
 
-    # Nav2 bringup (benne van a Nav2PathClient + controller_server stb.)
-    nav2_bringup = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(nav2_bringup_launch)
-    )
-
-    # TF broadcaster (odom - base_link)
+    
     tf_broadcaster = Node(
         package='hibrid_ai_pkg',
         executable='tf_broadcaster',
@@ -86,7 +83,7 @@ def generate_launch_description():
         parameters=[{'odom_topic': '/odom'}, {'use_sim_time': True}]
     )
 
-    # ROS /cmd_vel - Ignition /cmd_vel
+    
     gz_cmd_vel_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -95,7 +92,7 @@ def generate_launch_description():
         arguments=['/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist']
     )
 
-    # Ignition odom - ROS /odom
+    
     gz_bridge_odom = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -105,7 +102,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Ignition lidar - ROS /scan
+    
     gz_bridge_lidar = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',

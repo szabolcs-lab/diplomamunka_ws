@@ -20,15 +20,20 @@ class Nav2PathClient(Node):
         self.declare_parameter('path_topic', '/planned_path_dilated')
         path_topic = self.get_parameter('path_topic').get_parameter_value().string_value
         
-        # Preempt szűrők
-        self.declare_parameter("min_preempt_dt", 2.0)      # sec
-        self.min_preempt_dt = float(self.get_parameter("min_preempt_dt").value)
+        self.declare_parameter("minimum_preemption_time", 2.0)      # sec
+        self.minimum_preemption_time = float(self.get_parameter("minimum_preemption_time").value)
         
-        self.declare_parameter("goal_shift_thresh", 0.30)  # m
-        self.goal_shift_thresh = float(self.get_parameter("goal_shift_thresh").value)
+        self.declare_parameter("maximum_goal_shift_distance", 0.30)  # m
+        self.maximum_goal_shift_distance = float(self.get_parameter("maximum_goal_shift_distance").value)
         
         self.declare_parameter("goal_reached_tolerance", 0.8)  # m  
         self.goal_reached_tolerance = float(self.get_parameter("goal_reached_tolerance").value)
+        
+        self.declare_parameter("path_change_thresh", 0.25)  # m
+        self.path_change_thresh = float(self.get_parameter("path_change_thresh").value)
+
+        self.declare_parameter("path_change_check_points", 25)  # db pose
+        self.path_change_check_points = int(self.get_parameter("path_change_check_points").value)
 
         self.last_goal_sent_time = 0.0    
         self.last_goal_xy = None 
@@ -36,6 +41,7 @@ class Nav2PathClient(Node):
         self.goal_handle = None
         self.pending_path = None
         self.cancel_in_progress = False
+        self.last_path_signature = None
 
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
@@ -90,7 +96,7 @@ class Nav2PathClient(Node):
         if robott_x is None:
             return path_msg
         
-        closest_path_idx = 0
+        closest_path_index = 0
         closest_distance_sq = float('inf')
         
         for i, path_pose in enumerate(path_msg.poses):
@@ -104,17 +110,17 @@ class Nav2PathClient(Node):
             
             if distance_squared < closest_distance_sq:
                 closest_distance_sq = distance_squared
-                closest_path_idx = i
+                closest_path_index = i
         
-        if len(path_msg.poses) - closest_path_idx < 3:
-            self.get_logger().warn(f"Túl rövid a path ({len(path_msg.poses)-closest_path_idx} pont....)")
+        if len(path_msg.poses) - closest_path_index < 3:
+            self.get_logger().warn(f"Túl rövid a path ({len(path_msg.poses)-closest_path_index} pont....)")
             return path_msg
         
         sliced_path = Path()
         sliced_path.header = path_msg.header
-        sliced_path.poses = path_msg.poses[closest_path_idx:]
+        sliced_path.poses = path_msg.poses[closest_path_index:]
         
-        self.get_logger().debug(f"Path levágva: {closest_path_idx} - {len(sliced_path.poses)} pont...")
+        self.get_logger().debug(f"Path levágva: {closest_path_index} - {len(sliced_path.poses)} pont...")
         
         return sliced_path
 
@@ -129,14 +135,14 @@ class Nav2PathClient(Node):
 
 
     #Eldönti, hogy érdemes-e most preemptelni ...
-    def should_preempt(self, new_path: Path):       
+    def should_preempt(self, new_path: Path):
         now = time.time()
 
         too_early = now - self.last_goal_sent_time
-        
-        if too_early < self.min_preempt_dt:
+        if too_early < self.minimum_preemption_time:
             return False
 
+        #ha a célpont nagyon elmozdult, akkor biztos preempt
         new_xy_goal = self.path_goal_xy(new_path)
         if new_xy_goal is None:
             return False
@@ -146,10 +152,58 @@ class Nav2PathClient(Node):
 
         delta_x = new_xy_goal[0] - self.last_goal_xy[0]
         delta_y = new_xy_goal[1] - self.last_goal_xy[1]
-        goal_distance = math.hypot(delta_x, delta_y )
+        goal_distance = math.hypot(delta_x, delta_y)
 
-        return goal_distance > self.goal_shift_thresh
-       
+        if goal_distance > self.maximum_goal_shift_distance:
+            return True
+
+        #ha a cél nem mozdult, de az út alakja igen, akkor is preempt
+        return self.is_path_changed_enough(new_path)
+        
+    
+    #Az út első N pontját beszünl lenyomatot és beletesszük egy  listába....
+    def calculate_path_signature(self, path_message: Path):
+        num_checkpoints = min(len(path_message.poses), self.path_change_check_points)
+        
+        if num_checkpoints <= 0:
+            return None
+        
+        path_signature = []
+        
+        for i in range(num_checkpoints):
+            point = path_message.poses[i].pose.position
+            path_signature.append((float(point.x), float(point.y)))
+        
+        return path_signature
+
+    
+    #Ellenőrzi, hogy az új út elég különböző-e a korábbitól.
+    def is_path_changed_enough(self, new_path_message: Path):
+        new_path_signature = self.calculate_path_signature(new_path_message)
+        
+        if new_path_signature is None:
+            return False
+        
+        if self.last_path_signature is None:
+            return True
+        
+        num_comparison_points = min(len(new_path_signature), len(self.last_path_signature))
+        if num_comparison_points == 0:
+            return False
+        
+        total_distance = 0.0
+        for i in range(num_comparison_points):
+            prev_x, prev_y = self.last_path_signature[i]
+            new_x, new_y = new_path_signature[i]
+            distance = math.hypot(new_x - prev_x, new_y - prev_y)
+            total_distance += distance
+        
+        average_deviation = total_distance / num_comparison_points
+        
+        is_bigger = average_deviation > self.path_change_thresh
+        
+        return is_bigger
+     
 
     # Goal küldése a Nav2 FollowPath action szervernek...
     def send_path_as_goal(self, msg: Path):
@@ -159,9 +213,10 @@ class Nav2PathClient(Node):
         goal_msg.path = msg
 
         self.goal_active = True
-
         self.last_goal_sent_time = time.time()
         self.last_goal_xy = self.path_goal_xy(msg)
+
+        self.last_path_signature = self.calculate_path_signature(msg)
 
         send_goal_future = self._client.send_goal_async(goal_msg)
         send_goal_future.add_done_callback(self.goal_response_callback)

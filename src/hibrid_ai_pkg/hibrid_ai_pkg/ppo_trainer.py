@@ -424,7 +424,7 @@ class PPOTrainer(Node):
         self.previous_cmd_angular_z = None
         self.stuck_steps_count = 0
 
-        self.get_logger().info(f"Epizód start!!! MPPI vx_max={self.episode_vx_max:.3f} wz_max={self.episode_wz_max:.3f} vx_std={self.episode_vx_std:.3f}"
+        self.get_logger().warn(f"Epizód start!!! MPPI vx_max={self.episode_vx_max:.3f} wz_max={self.episode_wz_max:.3f} vx_std={self.episode_vx_std:.3f}"
                                f"wz_std={self.episode_wz_std:.3f} CostCritic.cost_weight={self.episode_cost_weight:.3f}")
 
     # Action értéket [-1,1]-ből átmappel [out_min,out_max] tartományra...
@@ -473,7 +473,7 @@ class PPOTrainer(Node):
         service_name = f"{self.controller_server_node}/set_parameters"
 
         if not self.mppi_set_params_client.wait_for_service(timeout_sec=0.5):
-            self.get_logger().error(f"Service nem elérhető: {service_name}")
+            self.get_logger().error(f"Service nem elérhető: {service_name} !!!!!!")
             return
 
         request = SetParameters.Request()
@@ -482,15 +482,15 @@ class PPOTrainer(Node):
                               self.make_double_param("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
 
         future = self.mppi_set_params_client.call_async(request)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=0.8) # EZ LEHET GONDOT FOG OKOZNI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        #rclpy.spin_until_future_complete(self, future, timeout_sec=0.8) # EZ LEHET GONDOT FOG OKOZNI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         if future.result() is None:
-            self.get_logger().error("Timeout hiba a paraméterküldésnél...")
+            self.get_logger().error("Timeout hiba a paraméterküldésnél!!!!!!!!!")
             return
 
         for i, result in enumerate(future.result().results):
             if not result.successful:
-                self.get_logger().error(f"Sikertelen: {request.parameters[i].name} reason={result.reason}")
+                self.get_logger().error(f"Sikertelen: {request.parameters[i].name} reason={result.reason} !!!!!!!")
 
 
     #Epizódot lezár, ment, bestet frissít és leáll...
@@ -522,7 +522,7 @@ class PPOTrainer(Node):
 
         self.get_logger().info(f"Epizód vége!!! Lépések={self.step_index} Ok={reason} Előrehaladás={self.total_progress_m:.3f} Energia={self.total_energy:.3f}" 
                                f"Pontszám={score:.2f}")
-        self.get_logger().info("Leáll (1 launch = 1 epizód).")
+        self.get_logger().info("Leáll (1 launch = 1 epizód)....")
         rclpy.shutdown()
 
 
@@ -551,7 +551,7 @@ class PPOTrainer(Node):
             return file_paths[-1][1]  # csak az útvonalat adjuk vissza
         
         except Exception as e:
-            self.get_logger().error(f"A modell keresese soán hiba történét: {e}")
+            self.get_logger().error(f"A modell keresese soán hiba történét: {e} !!!!!")
             return ""
 
 
@@ -614,7 +614,7 @@ class PPOTrainer(Node):
             self.get_logger().info(f"A best frissült! steps={steps} energy={energy:.3f} min_range={min_range_m:.3f} - {self.best_model_path}")
             
         except Exception as e:
-            self.get_logger().error(f"A best mentése során hiba történt: {e}")
+            self.get_logger().error(f"A best mentése során hiba történt: {e} !!!!!!")
             
 
     #State vektor és info értékek előállíátsa az odom/scan/path alapján...
@@ -718,7 +718,7 @@ class PPOTrainer(Node):
             return float(map_point.point.x), float(map_point.point.y)
         
         except Exception as e:
-            self.get_logger().error(f"TF hiba van: {e}")
+            self.get_logger().error(f"TF hiba van: {e} !!!!!")
             return None, None
 
 

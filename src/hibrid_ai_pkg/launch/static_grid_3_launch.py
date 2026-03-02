@@ -59,9 +59,7 @@ def generate_launch_description():
         }]
     )
 
-    nav2_bringup = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(nav2_bringup_launch)
-    )
+    nav2_bringup = IncludeLaunchDescription(PythonLaunchDescriptionSource(nav2_bringup_launch) )
 
     tf_broadcaster = Node(
         package='hibrid_ai_pkg',
