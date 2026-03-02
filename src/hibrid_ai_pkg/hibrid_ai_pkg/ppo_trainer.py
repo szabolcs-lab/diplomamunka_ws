@@ -95,15 +95,15 @@ class PPOTrainer(Node):
         self.best_model_path = os.path.join(self.runs_dir, "best_latest.pth")
         self.latest_global_model_path = os.path.join(self.runs_dir, "latest_global.pth")
 
-        self.init_csv_if_missing(self.run_metrics_csv,header=["lepesek_szama","befejezes_oka","mppi_vx_max","mppi_wz_max","mppi_vx_std","mppi_wz_std","mppi_cost_weight",
+        self.init_csv(self.run_metrics_csv,header=["lepesek_szama","befejezes_oka","mppi_vx_max","mppi_wz_max","mppi_vx_std","mppi_wz_std","mppi_cost_weight",
                                                                 "celtol_valo_tavolsag (m)","legkozelebbi_akadaly_tavolsag",
                                                                 "ossz_haladas","sebessegvaltozas_energia","kapott_pontszam"])
 
-        self.init_csv_if_missing(self.global_metrics_csv,header=["futas_azonosito","lepesek_szama","befejezes_oka","mppi_vx_max","mppi_wz_max",
+        self.init_csv(self.global_metrics_csv,header=["futas_azonosito","lepesek_szama","befejezes_oka","mppi_vx_max","mppi_wz_max",
                                                                   "mppi_vx_std","mppi_wz_std","mppi_cost_weight","celtol_valo_tavolsag (m)",
                                                                   "legkozelebbi_akadaly_tavolsag","ossz_haladas","sebessegvaltozas_energia","kapott_pontszam","modell_fajl"])
 
-        self.init_csv_if_missing(self.best_metrics_csv,header=["futas_azonosito","lepesek_szama","befejezes_oka","legkozelebbi_akadaly_tavolsag",
+        self.init_csv(self.best_metrics_csv,header=["futas_azonosito","lepesek_szama","befejezes_oka","legkozelebbi_akadaly_tavolsag",
                                                                 "ossz_haladas","sebessegvaltozas_energia","kapott_pontszam","forras_modell"])
 
         # cache
@@ -203,7 +203,7 @@ class PPOTrainer(Node):
 
 
     #Létrehozzza a CSV-t fejléccel, ha még nem létezik...
-    def init_csv_if_missing(self, csv_path, header):       
+    def init_csv(self, csv_path, header):       
         if os.path.exists(csv_path):
             return
         
@@ -550,7 +550,7 @@ class PPOTrainer(Node):
             
             return file_paths[-1][1]  # csak az útvonalat adjuk vissza
         
-        except Exception:
+        except Exception as e:
             self.get_logger().error(f"A modell keresese soán hiba történét: {e}")
             return ""
 
