@@ -27,8 +27,8 @@ class PPOProduct(Node):
         self.declare_parameter("control_hz", 10.0)
         self.control_hz = float(self.get_parameter("control_hz").value)
 
-        self.declare_parameter("lidar_bins", 12)
-        self.lidar_bins = int(self.get_parameter("lidar_bins").value)
+        self.declare_parameter("lidar_sector", 12)
+        self.lidar_sector = int(self.get_parameter("lidar_sector").value)
 
         self.declare_parameter("lidar_max_range", 6.0)
         self.lidar_max_range_m = float(self.get_parameter("lidar_max_range").value)
@@ -63,7 +63,7 @@ class PPOProduct(Node):
         self.set_once = False
 
 
-        self.state_dim = 5 + self.lidar_bins
+        self.state_dim = 5 + self.lidar_sector
         self.action_dim = 5
         self.ppo_trainer = PPOTraining(state_dim=self.state_dim, action_dim=self.action_dim)
 
@@ -76,9 +76,9 @@ class PPOProduct(Node):
 
         self.mppi_set_params_client = self.create_client(SetParameters,f"{self.controller_server_node}/set_parameters" )
 
-        self._last_setparams_request = None
-        self._last_setparams_info = None
-        self._last_setparams_values = None
+        self.last_setparams_request = None
+        self.last_setparams_info = None
+        self.last_setparams_values = None
 
         qos_path = QoSProfile(depth=10)
         qos_path.reliability = ReliabilityPolicy.RELIABLE
@@ -102,7 +102,7 @@ class PPOProduct(Node):
 
 
         timer_period_sec = 1.0 / max(1e-6, self.control_hz)
-        self.timer = self.create_timer(timer_timer_period_secperiod_s, self.on_control_tick)
+        self.timer = self.create_timer(timer_period_sec, self.on_control_tick)
 
         self.get_logger().info("PPOProduct indul. Egyszeri MPPI param beállítás...")
         self.get_logger().info(f"MPPI node: {self.controller_server_node}")
@@ -224,9 +224,9 @@ class PPOProduct(Node):
                               self.make_double_param("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
 
         # eltesszük, hogy a callback tudjon logolni (nálad úgyis egyszer fut)
-        self._last_setparams_request = request
-        self._last_setparams_info = info
-        self._last_setparams_values = (vx_max, wz_max, vx_std, wz_std, cost_weight)
+        self.last_setparams_request = request
+        self.last_setparams_info = info
+        self.last_setparams_values = (vx_max, wz_max, vx_std, wz_std, cost_weight)
 
         future = self.mppi_set_params_client.call_async(request)
         future.add_done_callback(self.on_set_mppi_parameters_done)
@@ -241,16 +241,16 @@ class PPOProduct(Node):
                 self.get_logger().error("set_parameters: nincs válasz (None)!!!!!")
                 return
 
-            request = self._last_setparams_request
-            info = self._last_setparams_info
-            vx_max, wz_max, vx_std, wz_std, cost_weight = self._last_setparams_values
+            request = self.last_setparams_request
+            info = self.last_setparams_info
+            vx_max, wz_max, vx_std, wz_std, cost_weight = self.last_setparams_values
 
             for i, r in enumerate(res.results):
                 if not r.successful:
                     self.get_logger().error(f"Sikertelen: {request.parameters[i].name} reason={r.reason} !!!!!!")
                     return
 
-            self.get_logger().info(f"MPPI paramok beállítva OK: vx_max={vx_max:.3f} wz_max={wz_max:.3f} vx_std={vx_std:.3f} wz_std={wz_std:.3f} cost_w={cost_weight:.3f} | "
+            self.get_logger().warn(f"MPPI paramok beállítva OK: vx_max={vx_max:.3f} wz_max={wz_max:.3f} vx_std={vx_std:.3f} wz_std={wz_std:.3f} cost_w={cost_weight:.3f} | "
                                    f"dist_goal={info['distance_goal']:.2f} min_range={info['min_range']:.2f}")
 
         except Exception as e:
@@ -258,7 +258,7 @@ class PPOProduct(Node):
 
     
     def build_state_and_info(self, odom, scan, path):
-        robot_x, robot_y = self.get_robot_xy_in_map(odom)
+        robot_x, robot_y = self.get_robot_pose_from_odom_in_map(odom)
         if robot_x is None:
             return None, None
 
@@ -280,10 +280,10 @@ class PPOProduct(Node):
 
         if clean_ranges:
             min_range_m = min(clean_ranges)
-            normalized_lidar_bins = self.bin_lidar_min(clean_ranges)
+            normalized_lidar_sector = self.lidar_sector_min_distances(clean_ranges)
         else:
             min_range_m = max_range
-            normalized_lidar_bins = [1.0] * self.lidar_bins
+            normalized_lidar_sector = [1.0] * self.lidar_sector
 
         cross_track_error_m = self.compute_cross_track_error(robot_x, robot_y, path)
 
@@ -293,65 +293,72 @@ class PPOProduct(Node):
         normalized_angular_velocity = max(min(robot_w / 1.5, 1.0), -1.0)
         normalized_min_lidar_range = min_range_m / max_range
 
-        state = [normalized_goal_distance,normalized_linear_velocity, normalized_angular_velocity, normalized_min_lidar_range, normalized_cross_track_error] + normalized_lidar_bins
+        state = [normalized_goal_distance,normalized_linear_velocity, normalized_angular_velocity, normalized_min_lidar_range, normalized_cross_track_error] + normalized_lidar_sector
 
         info = {"distance_goal": float(goal_distance_m),"min_range": float(min_range_m),"cross_track_error": float(cross_track_error_m)}
 
         return state, info
 
     
-    def bin_lidar_min(self, scan_ranges):
+    def lidar_sector_min_distances(self, scan_ranges):
         total_points = len(scan_ranges)
-        points_per_bin = max(1, total_points // self.lidar_bins)
+        points_per_bin = max(1, total_points // self.lidar_sector)
 
         result = []
-        for i in range(self.lidar_bins):
+        for i in range(self.lidar_sector):
             start = i * points_per_bin
             end = min(total_points, (i + 1) * points_per_bin)
 
             if start >= total_points:
-                minimum_distance = float(self.lidar_max_range_m)
+                minimum_distance = self.lidar_max_range_m
             else:
-                minimum_distance = float(np.min(scan_ranges[start:end]))
+                minimum_distance = np.min(scan_ranges[start:end])
 
             result.append(minimum_distance / self.lidar_max_range_m)
 
         return result
 
     
-    def compute_cross_track_error(self, robot_x, robot_y, path):
+    def compute_cross_track_error(self, robot_x, robot_y, path, radius=5.0):     
         if path is None or len(path.poses) == 0:
             return 0.0
 
-        best_min_distance = float("inf")
+        best_min_distance = float('inf')
+        
         for pose_stamped in path.poses:
             path_x = float(pose_stamped.pose.position.x)
-            path_y = float(pose_stamped.pose.position.y)
-            euclides_distance = math.hypot(path_x - robot_x, path_y - robot_y)
+            path_y = float(pose_stamped.pose.position.y)        
+            delta_x = path_x - robot_x
+            delta_y = path_y - robot_y
             
-            if euclides_distance < best_min_distance:
-                best_min_distance = euclides_distance
-
-        return float(best_min_distance)
+            if delta_x*delta_x + delta_y*delta_y > radius*radius:
+                continue
+            
+            euclides_distance = math.hypot(delta_x, delta_y)
+            best_min_distance = min(best_min_distance, euclides_distance)
+             
+        return best_min_distance
 
     
-    def get_robot_xy_in_map(self, odom):
+    def get_robot_pose_from_odom_in_map(self, odom):     
         odom_point = PointStamped()
         odom_point.header.frame_id = odom.header.frame_id
-        now = self.get_clock().now()
-        odom_point.header.stamp = now.to_msg()
+        #now = self.get_clock().now()
+        #odom_point.header.stamp = self.get_clock().now().to_msg()
+        odom_point.header.stamp = odom.header.stamp
 
         odom_point.point.x = float(odom.pose.pose.position.x)
         odom_point.point.y = float(odom.pose.pose.position.y)
         odom_point.point.z = 0.0
 
         try:
-            transform = self.tf_buffer.lookup_transform("map",odom_point.header.frame_id,now,timeout=Duration(seconds=0.2))
+            transform = self.tf_buffer.lookup_transform("map",odom_point.header.frame_id,odom_point.header.stamp,timeout=Duration(seconds=0.2))
             map_point = do_transform_point(odom_point, transform)
-            return float(map_point.point.x), float(map_point.point.y)
-
+            
+            return map_point.point.x, map_point.point.y
+        
         except Exception as e:
-            self.get_logger().error(f"TF hiba van: {e} !!!!!!")
+            self.get_logger().error(f"TF hiba van: {e} !!!!!")
             return None, None
 
 

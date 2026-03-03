@@ -100,3 +100,4 @@ ido_belyeg,modszer,palya,vegrehajtasi_ido,utkozesek,sikeres,atlag_elteres,max_el
 2026-03-02 17:49:45,d_star_lite_nav2_dynamic,occupancy_grid_1.csv,206.643,0,1,0.0736,0.3532,0.1017,46.477,1.660,0.008,0.178,0.000,6.2282
 2026-03-02 18:29:36,a_star_nav2_static,occupancy_grid_1.csv,182.045,0,1,0.0812,0.2913,0.0990,42.542,1.519,0.009,0.143,0.000,6.0773
 2026-03-02 18:35:04,d_star_lite_nav2_dynamic,occupancy_grid_1.csv,204.168,0,1,0.0733,0.3695,0.1013,46.503,1.661,0.008,0.119,0.000,6.1946
+2026-03-03 14:12:37,hibrid_d_star_lite_ppo_nav2_static_grid_1,occupancy_grid_1.csv,170.128,0,1,0.1069,0.4755,0.1441,43.857,1.566,0.011,0.146,0.000,5.4876

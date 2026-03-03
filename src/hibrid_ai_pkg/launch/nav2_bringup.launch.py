@@ -10,7 +10,7 @@ def generate_launch_description():
 
     nav2_controller_params = os.path.join(pkg_dir, 'configs', 'nav2_controller_params.yaml')
 
-    # 1) Path -> FollowPath kliens
+ 
     nav2_path_client = Node(
         package='hibrid_ai_pkg',
         executable='nav2_path',
@@ -19,17 +19,17 @@ def generate_launch_description():
         parameters=[{'path_topic': '/planned_path_dilated'}, {'use_sim_time': True}, {'minimum_preemption_time': 2.0}, 
                     {'maximum_goal_shift_distance': 0.30}, {'goal_reached_tolerance': 0.8,}])
 
-    # 2) Nav2 controller_server
+
     controller_server = Node(
         package='nav2_controller',
         executable='controller_server',
         name='controller_server',
         output='screen',
         parameters=[nav2_controller_params],
-        arguments=['--ros-args', '--log-level', 'controller_server:=debug']
+        #arguments=['--ros-args', '--log-level', 'controller_server:=debug']
     )
 
-    # 3) lifecycle manager csak a controllerre
+ 
     lifecycle_manager = Node(
         package='nav2_lifecycle_manager',
         executable='lifecycle_manager',

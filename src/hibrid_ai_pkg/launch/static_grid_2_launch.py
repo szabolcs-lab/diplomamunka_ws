@@ -45,7 +45,7 @@ def generate_launch_description():
         parameters=[{
             "runs_dir": "./ppo_runs/grid_2",
             "model_file": "./ppo_runs/grid_2/best_latest.pth",
-            "lidar_bins": 12,
+            "lidar_sector": 12,
             "lidar_max_range": 6.0,
             "odom_topic": "/odom",
             "scan_topic": "/scan",
@@ -56,7 +56,8 @@ def generate_launch_description():
             "cost_weight_min": 0.50,
             "cost_weight_max": 8.00,
             "use_sim_time": True,
-        }]
+        }],
+        arguments=['--ros-args', '--log-level', 'metrics_log:=debug']
     )
 
     nav2_bringup = IncludeLaunchDescription(PythonLaunchDescriptionSource(nav2_bringup_launch))

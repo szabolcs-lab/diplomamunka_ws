@@ -44,7 +44,7 @@ def generate_launch_description():
         parameters=[{
             "runs_dir": "./ppo_runs/grid_1",
             "model_file": "./ppo_runs/grid_1/best_latest.pth",
-            "lidar_bins": 12,
+            "lidar_sector": 12,
             "lidar_max_range": 6.0,
             "odom_topic": "/odom",
             "scan_topic": "/scan",
@@ -120,7 +120,8 @@ def generate_launch_description():
             'need_goal_to_finish': False,
             'stop_speed_eps': 0.05,
             'stop_time_s': 1.5
-        }]
+        }],
+        arguments=['--ros-args', '--log-level', 'metrics_log:=debug']
     )
 
     return LaunchDescription([

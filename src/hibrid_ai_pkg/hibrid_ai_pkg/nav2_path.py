@@ -57,169 +57,9 @@ class Nav2PathClient(Node):
 
         self.get_logger().info('Várakozás a FollowPath action szerverre...')
         self._client.wait_for_server()
-        self.get_logger().info('FollowPath action szerver elérhető.')
-
+        
+        self.get_logger().info('FollowPath action szerver elérhető...')
         self.get_logger().info('Nav2 Path Client node inicializálva...')
-
-
-    # A robot aktuális pozíciójának lekérdezése map frame-ben...
-    def get_robot_xy_in_map(self):
-        try:
-            tf = self._tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
-            x = tf.transform.translation.x
-            y = tf.transform.translation.y
-            return float(x), float(y)
-
-        except TransformException as e:
-            self.get_logger().error(f"TF hiba map-base_link!!! : {e}")
-            return None, None
-        
-    #Robot elég közel van-e a path végéhez...    
-    def robot_close_to_path_goal(self, path_msg: Path):
-        ronot_x, robot_y = self.get_robot_xy_in_map()
-        
-        if ronot_x is None or not path_msg.poses:
-            return False
-
-        path_end_x = float(path_msg.poses[-1].pose.position.x)
-        path_end_y = float(path_msg.poses[-1].pose.position.y)
-        
-        euclides_diatnace = math.hypot(path_end_x - ronot_x, path_end_y - robot_y)
-        
-        return euclides_diatnace < self.goal_reached_tolerance
-
-
-    # A Path elejének levágása a robothoz legközelebbi pontra...
-    def slice_path_to_robot(self, path_msg: Path):   
-        robott_x, robot_y = self.get_robot_xy_in_map()
-        
-        if robott_x is None:
-            return path_msg
-        
-        closest_path_index = 0
-        closest_distance_sq = float('inf')
-        
-        for i, path_pose in enumerate(path_msg.poses):
-            path_x_point = path_pose.pose.position.x
-            path_y_point = path_pose.pose.position.y
- 
-            delta_x = path_x_point - robott_x
-            delta_y = path_y_point - robot_y
-            
-            distance_squared = delta_x * delta_x + delta_y * delta_y
-            
-            if distance_squared < closest_distance_sq:
-                closest_distance_sq = distance_squared
-                closest_path_index = i
-        
-        if len(path_msg.poses) - closest_path_index < 3:
-            self.get_logger().warn(f"Túl rövid a path ({len(path_msg.poses)-closest_path_index} pont....)")
-            return path_msg
-        
-        sliced_path = Path()
-        sliced_path.header = path_msg.header
-        sliced_path.poses = path_msg.poses[closest_path_index:]
-        
-        self.get_logger().debug(f"Path levágva: {closest_path_index} - {len(sliced_path.poses)} pont...")
-        
-        return sliced_path
-
-    #Path vépontjának x és y koordinátái map frameben  
-    def path_goal_xy(self, path_msg: Path):
-        if not path_msg.poses:
-            return None
-        
-        g = path_msg.poses[-1].pose.position
-        
-        return float(g.x), float(g.y)
-
-
-    #Eldönti, hogy érdemes-e most preemptelni ...
-    def should_preempt(self, new_path: Path):
-        now = time.time()
-
-        too_early = now - self.last_goal_sent_time
-        if too_early < self.minimum_preemption_time:
-            return False
-
-        #ha a célpont nagyon elmozdult, akkor biztos preempt
-        new_xy_goal = self.path_goal_xy(new_path)
-        if new_xy_goal is None:
-            return False
-
-        if self.last_goal_xy is None:
-            return True
-
-        delta_x = new_xy_goal[0] - self.last_goal_xy[0]
-        delta_y = new_xy_goal[1] - self.last_goal_xy[1]
-        goal_distance = math.hypot(delta_x, delta_y)
-
-        if goal_distance > self.maximum_goal_shift_distance:
-            return True
-
-        #ha a cél nem mozdult, de az út alakja igen, akkor is preempt
-        return self.is_path_changed_enough(new_path)
-        
-    
-    #Az út első N pontját beszünl lenyomatot és beletesszük egy  listába....
-    def calculate_path_signature(self, path_message: Path):
-        num_checkpoints = min(len(path_message.poses), self.path_change_check_points)
-        
-        if num_checkpoints <= 0:
-            return None
-        
-        path_signature = []
-        
-        for i in range(num_checkpoints):
-            point = path_message.poses[i].pose.position
-            path_signature.append((float(point.x), float(point.y)))
-        
-        return path_signature
-
-    
-    #Ellenőrzi, hogy az új út elég különböző-e a korábbitól.
-    def is_path_changed_enough(self, new_path_message: Path):
-        new_path_signature = self.calculate_path_signature(new_path_message)
-        
-        if new_path_signature is None:
-            return False
-        
-        if self.last_path_signature is None:
-            return True
-        
-        num_comparison_points = min(len(new_path_signature), len(self.last_path_signature))
-        if num_comparison_points == 0:
-            return False
-        
-        total_distance = 0.0
-        for i in range(num_comparison_points):
-            prev_x, prev_y = self.last_path_signature[i]
-            new_x, new_y = new_path_signature[i]
-            distance = math.hypot(new_x - prev_x, new_y - prev_y)
-            total_distance += distance
-        
-        average_deviation = total_distance / num_comparison_points
-        
-        is_bigger = average_deviation > self.path_change_thresh
-        
-        return is_bigger
-     
-
-    # Goal küldése a Nav2 FollowPath action szervernek...
-    def send_path_as_goal(self, msg: Path):
-        self.get_logger().info(f'FollowPath goal küldése, poses={len(msg.poses)}...')
-
-        goal_msg = FollowPath.Goal()
-        goal_msg.path = msg
-
-        self.goal_active = True
-        self.last_goal_sent_time = time.time()
-        self.last_goal_xy = self.path_goal_xy(msg)
-
-        self.last_path_signature = self.calculate_path_signature(msg)
-
-        send_goal_future = self._client.send_goal_async(goal_msg)
-        send_goal_future.add_done_callback(self.goal_response_callback)
 
     # Path callback - ide érkezik minden új Path
     def path_callback(self, msg: Path):
@@ -258,6 +98,7 @@ class Nav2PathClient(Node):
         self.get_logger().info(f'A Path message megérkezett {len(msg.poses)}, küldés a Nav2nek; vágás után {len(msg2.poses)}...')
         self.send_path_as_goal(msg2)
 
+
     # Cancel befejeződött callback
     def cancel_done_callback(self, future):
 
@@ -270,6 +111,23 @@ class Nav2PathClient(Node):
             self.pending_path = None
             self.get_logger().info('Cancel kész van küldöm az új replanned path-ot...')
             self.send_path_as_goal(p)
+            
+            
+    # Goal küldése a Nav2 FollowPath action szervernek...
+    def send_path_as_goal(self, msg: Path):
+        self.get_logger().info(f'FollowPath goal küldése, poses={len(msg.poses)}...')
+
+        goal_msg = FollowPath.Goal()
+        goal_msg.path = msg
+
+        self.goal_active = True
+        self.last_goal_sent_time = time.time()
+        self.last_goal_xy = self.path_goal_xy(msg)
+
+        self.last_path_signature = self.calculate_path_signature(msg)
+
+        send_goal_future = self._client.send_goal_async(goal_msg)
+        send_goal_future.add_done_callback(self.goal_response_callback)
 
     #Goal response callback
     def goal_response_callback(self, future):
@@ -287,14 +145,161 @@ class Nav2PathClient(Node):
 
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.result_callback)
+        
 
     # Result callback - amikor a robot befejezte a követést
     def result_callback(self, rf):
         result = rf.result().result
-        self.get_logger().info('FollowPath befejezte a működést.')
+        self.get_logger().info('FollowPath befejezte a működést...')
 
         self.goal_active = False
         self.goal_handle = None
+        
+        
+    # A Path elejének levágása a robothoz legközelebbi pontra...
+    def slice_path_to_robot(self, path_msg: Path):   
+        robott_x, robot_y = self.get_actual_robot_pose_in_map()
+        
+        if robott_x is None:
+            return path_msg
+        
+        closest_path_index = 0
+        closest_distance_sq = float('inf')
+        
+        for i, path_pose in enumerate(path_msg.poses):
+            path_x_point = path_pose.pose.position.x
+            path_y_point = path_pose.pose.position.y
+ 
+            delta_x = path_x_point - robott_x
+            delta_y = path_y_point - robot_y
+            
+            distance_squared = delta_x * delta_x + delta_y * delta_y
+            
+            if distance_squared < closest_distance_sq:
+                closest_distance_sq = distance_squared
+                closest_path_index = i
+        
+        if len(path_msg.poses) - closest_path_index < 3:
+            self.get_logger().warn(f"Túl rövid a path ({len(path_msg.poses)-closest_path_index} pont....)")
+            return path_msg
+        
+        sliced_path = Path()
+        sliced_path.header = path_msg.header
+        sliced_path.poses = path_msg.poses[closest_path_index:]
+        
+        self.get_logger().debug(f"Path levágva: {closest_path_index} - {len(sliced_path.poses)} pont...")
+        
+        return sliced_path
+    
+    
+    # A robot aktuális pozíciójának lekérdezése map frame-ben...
+    def get_actual_robot_pose_in_map(self):
+        try:
+            tf = self._tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
+            robot_map_x = tf.transform.translation.x
+            robot_map_y = tf.transform.translation.y
+            return robot_map_x, robot_map_y
+
+        except TransformException as e:
+            self.get_logger().error(f"TF hiba map-base_link!!! : {e}")
+            return None, None
+    
+    
+    #Robot elég közel van-e a path végéhez...    
+    def robot_close_to_path_goal(self, path_msg: Path):
+        ronot_x, robot_y = self.get_actual_robot_pose_in_map()
+        
+        if ronot_x is None or not path_msg.poses:
+            return False
+
+        path_end_x = float(path_msg.poses[-1].pose.position.x)
+        path_end_y = float(path_msg.poses[-1].pose.position.y)
+        
+        euclides_diatnace = math.hypot(path_end_x - ronot_x, path_end_y - robot_y)
+        
+        return euclides_diatnace < self.goal_reached_tolerance
+    
+    
+    #Eldönti, hogy érdemes-e most preemptelni ...
+    def should_preempt(self, new_path: Path):
+        now = time.time()
+
+        too_early = now - self.last_goal_sent_time
+        if too_early < self.minimum_preemption_time:
+            return False
+
+        #ha a célpont nagyon elmozdult, akkor biztos preempt
+        new_xy_goal = self.path_goal_xy(new_path)
+        if new_xy_goal is None:
+            return False
+
+        if self.last_goal_xy is None:
+            return True
+
+        delta_x = new_xy_goal[0] - self.last_goal_xy[0]
+        delta_y = new_xy_goal[1] - self.last_goal_xy[1]
+        goal_distance = math.hypot(delta_x, delta_y)
+
+        if goal_distance > self.maximum_goal_shift_distance:
+            return True
+
+        #ha a cél nem mozdult, de az út alakja igen, akkor is preempt
+        return self.is_path_changed_enough(new_path)
+    
+    
+    #Path vépontjának x és y koordinátái map frameben  
+    def path_goal_xy(self, path_msg: Path):
+        if not path_msg.poses:
+            return None
+        
+        map_goal = path_msg.poses[-1].pose.position
+        
+        return map_goal.x, map_goal.y
+    
+    
+    
+    #Ellenőrzi, hogy az új út elég különböző-e a korábbitól.
+    def is_path_changed_enough(self, new_path_message: Path):
+        new_path_signature = self.calculate_path_signature(new_path_message)
+        
+        if new_path_signature is None:
+            return False
+        
+        if self.last_path_signature is None:
+            return True
+        
+        num_comparison_points = min(len(new_path_signature), len(self.last_path_signature))
+        if num_comparison_points == 0:
+            return False
+        
+        total_distance = 0.0
+        for i in range(num_comparison_points):
+            previous_x, previous_y = self.last_path_signature[i]
+            new_x, new_y = new_path_signature[i]
+            distance = math.hypot(new_x - previous_x, new_y - previous_y)
+            total_distance = total_distance + distance
+        
+        average_deviation = total_distance / num_comparison_points
+        
+        is_bigger = average_deviation > self.path_change_thresh
+        
+        return is_bigger
+    
+    
+    #Az út első N pontját beszünl lenyomatot és beletesszük egy  listába....
+    def calculate_path_signature(self, path_message: Path):
+        num_checkpoints = min(len(path_message.poses), self.path_change_check_points)
+        
+        if num_checkpoints <= 0:
+            return None
+        
+        path_signature = []
+        
+        for i in range(num_checkpoints):
+            point = path_message.poses[i].pose.position
+            path_signature.append((float(point.x), float(point.y)))
+        
+        return path_signature
         
 
 def main(args=None):

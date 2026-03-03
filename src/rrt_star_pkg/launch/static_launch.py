@@ -111,7 +111,8 @@ def generate_launch_description():
             'need_goal_to_finish': False, 
             'stop_speed_eps': 0.05,
             'stop_time_s': 1.5
-        }]
+        }],
+        arguments=['--ros-args', '--log-level', 'metrics_log:=debug']
     )
 
     

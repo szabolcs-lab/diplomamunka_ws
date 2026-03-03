@@ -291,7 +291,7 @@ class MetricsLog(Node):
                         self.collision_count,success,f"{mean_dev:.4f}",f"{self.deviation_max:.4f}", f"{rms_dev:.4f}", f"{self.path_length:.3f}",
                         f"{detour_ratio:.3f}",f"{stop_ratio:.3f}",f"{danger_ratio:.3f}",f"{collision_duration:.3f}",f"{self.energy_sum:.4f}"] )
 
-        self.get_logger().info("METRICS MENTVE......")
+        self.get_logger().debug("METRICS MENTVE......")
         rclpy.shutdown()
 
     def min_range(self, scan):

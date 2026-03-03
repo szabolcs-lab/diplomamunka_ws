@@ -52,7 +52,7 @@ def generate_launch_description():
             'goal_tolerance': 0.6, #0.8, 0.5, 0.6, 0.7
             'collision_distance': 0.18,
 
-            'lidar_bins': 12,
+            'lidar_sector': 12,
             'lidar_max_range': 6.0,
 
             'odom_topic': '/odom',
@@ -68,7 +68,8 @@ def generate_launch_description():
             'stuck_window_steps': 80,
             'stuck_delta_eps': 0.001
                         
-        }]
+        }],
+        arguments=['--ros-args', '--log-level', 'ppo_trainer:=debug']
     )
 
 

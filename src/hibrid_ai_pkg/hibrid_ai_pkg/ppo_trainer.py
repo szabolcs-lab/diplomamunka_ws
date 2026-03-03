@@ -45,8 +45,8 @@ class PPOTrainer(Node):
         self.declare_parameter("min_steps_for_goal", 50)
         self.min_steps_for_goal = int(self.get_parameter("min_steps_for_goal").value)
         
-        self.declare_parameter("lidar_bins", 12)
-        self.lidar_bins = int(self.get_parameter("lidar_bins").value)
+        self.declare_parameter("lidar_sector", 12)
+        self.lidar_sector = int(self.get_parameter("lidar_sector").value)
         
         self.declare_parameter("lidar_max_range", 6.0)
         self.lidar_max_range_m = float(self.get_parameter("lidar_max_range").value)
@@ -135,7 +135,7 @@ class PPOTrainer(Node):
         self.episode_cost_weight = 0.0
 
         # PPO tréner
-        self.state_dim = 5 + self.lidar_bins
+        self.state_dim = 5 + self.lidar_sector
         self.action_dim = 5
         self.ppo_trainer = PPOTraining(state_dim=self.state_dim, action_dim=self.action_dim)
         self.ppo_trainer.save_dir = self.run_dir
@@ -178,7 +178,7 @@ class PPOTrainer(Node):
         self.timer = self.create_timer(timer_period_s, self.on_control_tick)
 
         mode_text = "TRAIN" if self.is_training else "EVAL"
-        self.get_logger().info(f"PPOTrainer indul. mode={mode_text}")
+        self.get_logger().debug(f"PPOTrainer indul. mode={mode_text}")
         self.get_logger().info(f"Run mappa: {self.run_dir}")
         self.get_logger().info("1 launch = 1 epizód, epizód végén shutdown.")
         self.get_logger().info(f"MPPI node: {self.controller_server_node}")
@@ -253,7 +253,7 @@ class PPOTrainer(Node):
             self.ppo_trainer.policy.save_file = self.best_model_path
             self.ppo_trainer.policy.load_from_file()
             self.ppo_trainer.copy_policy()
-            self.get_logger().info(f"best_latest.pth betöltve: {self.best_model_path}")
+            self.get_logger().debug(f"best_latest.pth betöltve: {self.best_model_path}")
             
         except Exception as e:
             self.get_logger().error(f"best_latest.pth betöltésénél hiab van!!!!!!!!! : {e}")
@@ -277,7 +277,7 @@ class PPOTrainer(Node):
             self.get_logger().warn(f"Path túl rövid: {len(self.latest_path.poses)} pose < 2")
             return
         
-        self.get_logger().debug("Minden input rendben mgjött!!!")
+        self.get_logger().info("Minden input rendben mgjött!!!")
 
         # Epizód eleje egyszer választunk actiont és beállítjuk az MPPI parammétereket
         if self.step_index == 0:
@@ -357,7 +357,7 @@ class PPOTrainer(Node):
             self.finish_episode_and_shutdown(reason, goal_distance_m, min_range_m)
 
         if self.step_index % 20 == 0:
-            rbot_x, robot_y = self.get_robot_xy_in_map(self.latest_odom)
+            rbot_x, robot_y = self.get_robot_pose_from_odom_in_map(self.latest_odom)
             
             if rbot_x is None:
                 self.get_logger().warn("Robot pozíciója None!!! TF/odom hiba!!!!")
@@ -424,7 +424,7 @@ class PPOTrainer(Node):
         self.previous_cmd_angular_z = None
         self.stuck_steps_count = 0
 
-        self.get_logger().warn(f"Epizód start!!! MPPI vx_max={self.episode_vx_max:.3f} wz_max={self.episode_wz_max:.3f} vx_std={self.episode_vx_std:.3f}"
+        self.get_logger().debug(f"Epizód start!!! MPPI vx_max={self.episode_vx_max:.3f} wz_max={self.episode_wz_max:.3f} vx_std={self.episode_vx_std:.3f}"
                                f"wz_std={self.episode_wz_std:.3f} CostCritic.cost_weight={self.episode_cost_weight:.3f}")
 
     # Action értéket [-1,1]-ből átmappel [out_min,out_max] tartományra...
@@ -435,7 +435,7 @@ class PPOTrainer(Node):
         return float(out_min + normalized * (out_max - out_min))
 
 
-    #Egyszerű energa-metrika: |delta_v|+|delta_w| ,lépésenként cmdvel alapján...
+    #energa-metrika: |delta_v|+|delta_w| ,lépésenként cmdvel alapján...
     def compute_energy_step_from_cmd_vel(self):
         if self.latest_cmd_vel is None:
             return 0.0
@@ -517,7 +517,7 @@ class PPOTrainer(Node):
         self.append_csv_row(self.global_metrics_csv, global_row)
 
         if model_path and os.path.exists(model_path):
-            self.maybe_update_best_model(reason=reason, steps=self.step_index, min_range_m=min_range_m, progress_m=self.total_progress_m,
+            self.update_best_model(reason=reason, steps=self.step_index, min_range_m=min_range_m, progress_m=self.total_progress_m,
                                           energy=self.total_energy,score=score, model_path=model_path)
 
         self.get_logger().info(f"Epizód vége!!! Lépések={self.step_index} Ok={reason} Előrehaladás={self.total_progress_m:.3f} Energia={self.total_energy:.3f}" 
@@ -568,7 +568,7 @@ class PPOTrainer(Node):
         return basic
 
     #Best modell frissítés logika steps - energy - min_range...
-    def maybe_update_best_model(self, reason, steps, min_range_m, progress_m, energy, score, model_path):     
+    def update_best_model(self, reason, steps, min_range_m, progress_m, energy, score, model_path):     
         if reason != "goal":
             return
 
@@ -611,7 +611,7 @@ class PPOTrainer(Node):
             self.append_csv_row(self.best_metrics_csv,[os.path.basename(self.run_dir),steps,"goal",f"{min_range_m:.4f}",f"{progress_m:.4f}",
                                                         f"{energy:.4f}",f"{score:.4f}",model_path])
             
-            self.get_logger().info(f"A best frissült! steps={steps} energy={energy:.3f} min_range={min_range_m:.3f} - {self.best_model_path}")
+            self.get_logger().debug(f"A best frissült! steps={steps} energy={energy:.3f} min_range={min_range_m:.3f} - {self.best_model_path}")
             
         except Exception as e:
             self.get_logger().error(f"A best mentése során hiba történt: {e} !!!!!!")
@@ -619,7 +619,7 @@ class PPOTrainer(Node):
 
     #State vektor és info értékek előállíátsa az odom/scan/path alapján...
     def build_state_and_info(self, odom, scan, path):  
-        robot_x, robot_y = self.get_robot_xy_in_map(odom)
+        robot_x, robot_y = self.get_robot_pose_from_odom_in_map(odom)
         if robot_x is None:
             return None, None
 
@@ -641,10 +641,10 @@ class PPOTrainer(Node):
         
         if clean_ranges:
             min_range_m = min(clean_ranges)
-            normalized_lidar_bins = self.bin_lidar_min(clean_ranges)  # eredeti függvény marad
+            normalized_lidar_sector = self.lidar_sector_min_distances(clean_ranges)  # eredeti függvény marad
         else:
             min_range_m = max_range
-            normalized_lidar_bins = [1.0] * self.lidar_bins
+            normalized_lidar_sector = [1.0] * self.lidar_sector
 
         cross_track_error_m = self.compute_cross_track_error(robot_x, robot_y, path)
 
@@ -655,7 +655,7 @@ class PPOTrainer(Node):
         normalized_angular_velocity  = max(min(robot_w / 1.5, 1.0), -1.0)
         normalized_min_lidar_range  = min_range_m / max_range
 
-        state = [normalized_goal_distance , normalized_linear_velocity , normalized_angular_velocity , normalized_min_lidar_range , normalized_cross_track_error ] + normalized_lidar_bins
+        state = [normalized_goal_distance , normalized_linear_velocity , normalized_angular_velocity , normalized_min_lidar_range , normalized_cross_track_error ] + normalized_lidar_sector
 
         info = {"distance_goal": goal_distance_m, "min_range": min_range_m,"cross_track_error": cross_track_error_m}
         
@@ -663,19 +663,19 @@ class PPOTrainer(Node):
 
 
     #A lidar tartományt bin-ekre bontja és bin-enként minimumot ad vissza normalizálva...
-    def bin_lidar_min(self, scan_ranges):    
+    def lidar_sector_min_distances(self, scan_ranges):    
         total_points = len(scan_ranges)
-        points_per_bin = max(1, total_points // self.lidar_bins)
+        points_per_bin = max(1, total_points // self.lidar_sector)
 
         result = []
-        for i in range(self.lidar_bins):
+        for i in range(self.lidar_sector):
             start = i * points_per_bin
             end = min(total_points, (i + 1) * points_per_bin)
             
             if start >= total_points:
-                minimum_distance = float(self.lidar_max_range_m)
+                minimum_distance = self.lidar_max_range_m
             else:
-                minimum_distance = float(np.min(scan_ranges[start:end]))
+                minimum_distance = np.min(scan_ranges[start:end])
                 
             result.append(minimum_distance / self.lidar_max_range_m)
             
@@ -683,7 +683,7 @@ class PPOTrainer(Node):
 
     
     #Kiszámolja a robot legkisebbb távolságát a Path pontjaihoz...
-    def compute_cross_track_error(self, robot_x, robot_y, path):     
+    def compute_cross_track_error(self, robot_x, robot_y, path, radius=5.0):     
         if path is None or len(path.poses) == 0:
             return 0.0
 
@@ -691,31 +691,36 @@ class PPOTrainer(Node):
         
         for pose_stamped in path.poses:
             path_x = float(pose_stamped.pose.position.x)
-            path_y = float(pose_stamped.pose.position.y)
-            euclides_distance = math.hypot(path_x - robot_x, path_y - robot_y)
+            path_y = float(pose_stamped.pose.position.y)        
+            delta_x = path_x - robot_x
+            delta_y = path_y - robot_y
             
-            if euclides_distance < best_min_distance:
-                best_min_distance = euclides_distance
-                
-        return float(best_min_distance)
+            if delta_x*delta_x + delta_y*delta_y > radius*radius:
+                continue
+            
+            euclides_distance = math.hypot(delta_x, delta_y)
+            best_min_distance = min(best_min_distance, euclides_distance)
+             
+        return best_min_distance
     
     
     #Odom pozíciót átalakítjamap frame-be TF segítségével...
-    def get_robot_xy_in_map(self, odom):     
+    def get_robot_pose_from_odom_in_map(self, odom):     
         odom_point = PointStamped()
         odom_point.header.frame_id = odom.header.frame_id
-        now = self.get_clock().now()
-        odom_point.header.stamp = now.to_msg()
+        #now = self.get_clock().now()
+        #odom_point.header.stamp = self.get_clock().now().to_msg()
+        odom_point.header.stamp = odom.header.stamp
 
         odom_point.point.x = float(odom.pose.pose.position.x)
         odom_point.point.y = float(odom.pose.pose.position.y)
         odom_point.point.z = 0.0
 
         try:
-            transform = self.tf_buffer.lookup_transform("map",odom_point.header.frame_id,now,timeout=Duration(seconds=0.2))
+            transform = self.tf_buffer.lookup_transform("map",odom_point.header.frame_id,odom_point.header.stamp,timeout=Duration(seconds=0.2))
             map_point = do_transform_point(odom_point, transform)
             
-            return float(map_point.point.x), float(map_point.point.y)
+            return map_point.point.x, map_point.point.y
         
         except Exception as e:
             self.get_logger().error(f"TF hiba van: {e} !!!!!")
