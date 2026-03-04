@@ -157,7 +157,9 @@ class Nav2PathClient(Node):
         
         
     # A Path elejének levágása a robothoz legközelebbi pontra...
-    def slice_path_to_robot(self, path_msg: Path):   
+    def slice_path_to_robot(self, path_msg: Path): 
+        MAX_SLICE_PATH = 40
+          
         robott_x, robot_y = self.get_actual_robot_pose_in_map()
         
         if robott_x is None:
@@ -178,6 +180,8 @@ class Nav2PathClient(Node):
             if distance_squared < closest_distance_sq:
                 closest_distance_sq = distance_squared
                 closest_path_index = i
+                     
+        closest_path_index = min(closest_path_index, MAX_SLICE_PATH)
         
         if len(path_msg.poses) - closest_path_index < 3:
             self.get_logger().warn(f"Túl rövid a path ({len(path_msg.poses)-closest_path_index} pont....)")

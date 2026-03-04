@@ -63,7 +63,7 @@ controller_server:
 
       PathFollowCritic:
         enabled: true
-        weight: 5.0
+        weight: 10.0 #5.0
 
       PathAlignCritic:
         enabled: true
