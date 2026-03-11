@@ -1,8 +1,3 @@
-import os
-import csv
-import math
-from datetime import datetime
-import numpy as np
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry, Path
@@ -13,13 +8,16 @@ from tf2_ros import Buffer, TransformListener
 from tf2_geometry_msgs import do_transform_point
 import rclpy.time
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
-
+import os
+import csv
+import math
+from datetime import datetime
+import numpy as np
 
 class MetricsLog(Node):
     def __init__(self):
         super().__init__("metrics_log")
-
-        # ---- Paraméterek ----
+        
         self.declare_parameter("modszer", "ppo_hybrid")
         self.modszer = self.get_parameter("modszer").value
         
@@ -68,39 +66,32 @@ class MetricsLog(Node):
         self.last_path = None
         self.last_cmd = None
 
-        #Futás állapot
         self.run_started = False
         self.finished = False
         self.start_time = None
         self.last_move_time = None
 
-        #Ütközés
         self.collision_count = 0
         self.collision_samples = 0
         self._in_collision = False
 
-        #Eltérés
         self.deviation_sum = 0.0
         self.deviation_sq_sum = 0.0
         self.deviation_max = 0.0
         self.deviation_n = 0
 
-        #Megtett út
         self.prev_rx = None
         self.prev_ry = None
         self.start_rx = None
         self.start_ry = None
         self.path_length = 0.0
 
-        #Stop arány
         self.total_samples = 0
         self.stop_samples = 0
 
-        #Danger arány
         self.danger_distance = 0.8
         self.danger_samples = 0
 
-        #Energia
         self.energy_sum = 0.0
         self.prev_v = None
         self.prev_w = None
@@ -113,23 +104,26 @@ class MetricsLog(Node):
         qos_path.reliability = ReliabilityPolicy.RELIABLE
         qos_path.durability = DurabilityPolicy.TRANSIENT_LOCAL
         
+        self.create_subscription(Path, self.path_topic, self.path_callback, qos_path)
+        
         qos_cmd = QoSProfile(depth=20)
         qos_cmd.reliability = ReliabilityPolicy.RELIABLE
         qos_cmd.durability = DurabilityPolicy.VOLATILE
+        
+        self.create_subscription(Twist, self.cmd_vel_topic, self.cmd_callback, qos_cmd)
         
         qos_scan = QoSProfile(depth=10)
         qos_scan.reliability = ReliabilityPolicy.RELIABLE
         qos_scan.durability = DurabilityPolicy.VOLATILE
         
+        self.create_subscription(LaserScan, self.scan_topic, self.scan_callback, qos_scan)
+        
         qos_odom = QoSProfile(depth=20)
         qos_odom.reliability = ReliabilityPolicy.RELIABLE
         qos_odom.durability = DurabilityPolicy.VOLATILE
 
-        
         self.create_subscription(Odometry, self.odom_topic, self.odom_callback, qos_odom)
-        self.create_subscription(LaserScan, self.scan_topic, self.scan_callback, qos_scan)
-        self.create_subscription(Path, self.path_topic, self.path_callback, qos_path)
-        self.create_subscription(Twist, self.cmd_vel_topic, self.cmd_callback, qos_cmd)
+           
 
         self.timer = self.create_timer(0.1, self.on_timer)
 

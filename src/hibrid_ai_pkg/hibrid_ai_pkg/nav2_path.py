@@ -41,7 +41,7 @@ class Nav2PathClient(Node):
         self.goal_handle = None
         self.pending_path = None
         self.cancel_in_progress = False
-        self.last_path_signature = None
+        self.last_front_path = None
 
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
@@ -83,7 +83,7 @@ class Nav2PathClient(Node):
             if self.cancel_in_progress:
                 return
 
-            if not self.should_preempt(msg2):
+            if not self.is_preempt(msg2):
                 return
 
             self.pending_path = msg2
@@ -124,7 +124,7 @@ class Nav2PathClient(Node):
         self.last_goal_sent_time = time.time()
         self.last_goal_xy = self.path_goal_xy(msg)
 
-        self.last_path_signature = self.calculate_path_signature(msg)
+        self.last_front_path = self.calculate_path_signature(msg)
 
         send_goal_future = self._client.send_goal_async(goal_msg)
         send_goal_future.add_done_callback(self.goal_response_callback)
@@ -225,7 +225,7 @@ class Nav2PathClient(Node):
     
     
     #Eldönti, hogy érdemes-e most preemptelni ...
-    def should_preempt(self, new_path: Path):
+    def is_preempt(self, new_path: Path):
         now = time.time()
 
         too_early = now - self.last_goal_sent_time
@@ -248,7 +248,7 @@ class Nav2PathClient(Node):
             return True
 
         #ha a cél nem mozdult, de az út alakja igen, akkor is preempt
-        return self.is_path_changed_enough(new_path)
+        return self.is_path_changed(new_path)
     
     
     #Path vépontjának x és y koordinátái map frameben  
@@ -263,23 +263,23 @@ class Nav2PathClient(Node):
     
     
     #Ellenőrzi, hogy az új út elég különböző-e a korábbitól.
-    def is_path_changed_enough(self, new_path_message: Path):
-        new_path_signature = self.calculate_path_signature(new_path_message)
+    def is_path_changed(self, new_path_message: Path):
+        new_front_path = self.calculate_front_path(new_path_message)
         
-        if new_path_signature is None:
+        if new_front_path is None:
             return False
         
-        if self.last_path_signature is None:
+        if self.last_front_path is None:
             return True
         
-        num_comparison_points = min(len(new_path_signature), len(self.last_path_signature))
+        num_comparison_points = min(len(new_front_path), len(self.last_front_path))
         if num_comparison_points == 0:
             return False
         
         total_distance = 0.0
         for i in range(num_comparison_points):
-            previous_x, previous_y = self.last_path_signature[i]
-            new_x, new_y = new_path_signature[i]
+            previous_x, previous_y = self.last_front_path[i]
+            new_x, new_y = new_front_path[i]
             distance = math.hypot(new_x - previous_x, new_y - previous_y)
             total_distance = total_distance + distance
         
@@ -291,19 +291,19 @@ class Nav2PathClient(Node):
     
     
     #Az út első N pontját beszünl lenyomatot és beletesszük egy  listába....
-    def calculate_path_signature(self, path_message: Path):
+    def calculate_front_path(self, path_message: Path):
         num_checkpoints = min(len(path_message.poses), self.path_change_check_points)
         
         if num_checkpoints <= 0:
             return None
         
-        path_signature = []
+        front_path = []
         
         for i in range(num_checkpoints):
             point = path_message.poses[i].pose.position
-            path_signature.append((float(point.x), float(point.y)))
+            front_path.append((float(point.x), float(point.y)))
         
-        return path_signature
+        return front_path
         
 
 def main(args=None):

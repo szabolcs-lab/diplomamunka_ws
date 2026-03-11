@@ -690,8 +690,8 @@ class PPOTrainer(Node):
         best_min_distance = float('inf')
         
         for pose_stamped in path.poses:
-            path_x = float(pose_stamped.pose.position.x)
-            path_y = float(pose_stamped.pose.position.y)        
+            path_x = pose_stamped.pose.position.x
+            path_y = pose_stamped.pose.position.y        
             delta_x = path_x - robot_x
             delta_y = path_y - robot_y
             
