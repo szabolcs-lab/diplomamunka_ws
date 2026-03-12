@@ -662,24 +662,24 @@ class PPOTrainer(Node):
         return state, info
 
 
-    #A lidar tartományt bin-ekre bontja és bin-enként minimumot ad vissza normalizálva...
+    #A lidar tartományt szektorokra bontja és szektoronként a minimumot adja vissza normalizálva...
     def lidar_sector_min_distances(self, scan_ranges):    
         total_points = len(scan_ranges)
-        points_per_bin = max(1, total_points // self.lidar_sector)
+        points_per_sector = max(1, total_points // self.lidar_sector)
 
-        result = []
+        normalized_lidar_sector_result = []
         for i in range(self.lidar_sector):
-            start = i * points_per_bin
-            end = min(total_points, (i + 1) * points_per_bin)
+            sector_start = i * points_per_sector
+            sector_end = min(total_points, (i + 1) * points_per_sector)
             
-            if start >= total_points:
+            if sector_start >= total_points:
                 minimum_distance = self.lidar_max_range_m
             else:
-                minimum_distance = np.min(scan_ranges[start:end])
+                minimum_distance = np.min(scan_ranges[sector_start:sector_end])
                 
-            result.append(minimum_distance / self.lidar_max_range_m)
+            normalized_lidar_sector_result.append(minimum_distance / self.lidar_max_range_m)
             
-        return result
+        return normalized_lidar_sector_result
 
     
     #Kiszámolja a robot legkisebbb távolságát a Path pontjaihoz...
