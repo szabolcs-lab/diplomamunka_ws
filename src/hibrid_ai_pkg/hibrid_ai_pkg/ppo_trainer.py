@@ -619,40 +619,40 @@ class PPOTrainer(Node):
 
     #State vektor és info értékek előállíátsa az odom/scan/path alapján...
     def build_state_and_info(self, odom, scan, path):  
-        robot_x, robot_y = self.get_robot_pose_from_odom_in_map(odom)
-        if robot_x is None:
+        robot_map_x, robot_map_y = self.get_robot_pose_from_odom_in_map(odom)
+        if robot_map_x is None:
             return None, None
 
-        robot_v = float(odom.twist.twist.linear.x)
-        robot_w = float(odom.twist.twist.angular.z)
+        robot_linear_speed = float(odom.twist.twist.linear.x)
+        robot_angular_speed = float(odom.twist.twist.angular.z)
 
-        goal_x = float(path.poses[-1].pose.position.x)
-        goal_y = float(path.poses[-1].pose.position.y)
-        goal_distance_m = math.hypot(goal_x - robot_x, goal_y - robot_y)
+        goal_map_x = float(path.poses[-1].pose.position.x)
+        goal_map_y = float(path.poses[-1].pose.position.y)
+        goal_distance_m = math.hypot(goal_map_x - robot_map_x, goal_map_y - robot_map_y)
 
-        clean_ranges = []
+        cleand_ranges = []
         max_range = self.lidar_max_range_m
         
         for i in scan.ranges:
             if 0 < i <= max_range and not math.isnan(i) and math.isfinite(i):
-                clean_ranges.append(i)
+                cleand_ranges.append(i)
             else:
-                clean_ranges.append(max_range)
+                cleand_ranges.append(max_range)
         
-        if clean_ranges:
-            min_range_m = min(clean_ranges)
-            normalized_lidar_sector = self.lidar_sector_min_distances(clean_ranges)  # eredeti függvény marad
+        if cleand_ranges:
+            min_range_m = min(cleand_ranges)
+            normalized_lidar_sector = self.lidar_sector_min_distances(cleand_ranges)  # eredeti függvény marad
         else:
             min_range_m = max_range
             normalized_lidar_sector = [1.0] * self.lidar_sector
 
-        cross_track_error_m = self.compute_cross_track_error(robot_x, robot_y, path)
+        cross_track_error_m = self.compute_cross_track_error(robot_map_x, robot_map_y, path)
 
         # normalizálás
         normalized_goal_distance  = min(goal_distance_m / 20.0, 1.0)
         normalized_cross_track_error  = min(cross_track_error_m / 2.0, 1.0)
-        normalized_linear_velocity  = max(min(robot_v / 1.0, 1.0), -1.0)
-        normalized_angular_velocity  = max(min(robot_w / 1.5, 1.0), -1.0)
+        normalized_linear_velocity  = max(min(robot_linear_speed / 1.0, 1.0), -1.0)
+        normalized_angular_velocity  = max(min(robot_angular_speed / 1.5, 1.0), -1.0)
         normalized_min_lidar_range  = min_range_m / max_range
 
         state = [normalized_goal_distance , normalized_linear_velocity , normalized_angular_velocity , normalized_min_lidar_range , normalized_cross_track_error ] + normalized_lidar_sector
