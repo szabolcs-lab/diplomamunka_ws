@@ -218,7 +218,7 @@ class PPOTrainer(Node):
             csv.writer(f).writerow(row)
 
     #Beolvassa a CSV utolsó sorát dictinonary-ként a header alapján...
-    def read_last_csv_row_as_dict(self, csv_path):        
+    def read_last_csv_row_in_dictionary(self, csv_path):        
         if not os.path.exists(csv_path):
             self.get_logger().error("Nem létezik a fájl!!!!")
             return None
@@ -231,15 +231,15 @@ class PPOTrainer(Node):
             return None
 
         header = rows[0]
-        last = rows[-1]
+        last_row = rows[-1]
         
-        if len(last) != len(header):
+        if len(last_row) != len(header):
             self.get_logger().error("A féjlban az utolsó sor sérült!!!!")
             return None
 
         last_csv_row = {}
         for i in range(len(header)):
-            last_csv_row[header[i]] = last[i]
+            last_csv_row[header[i]] = last_row[i]
             
         return last_csv_row
 
@@ -460,26 +460,27 @@ class PPOTrainer(Node):
         return energy_step
 
 
-    #ROS2 double param üzenet létrehozása...
-    def make_double_param(self, name, value):
-        param = RosParameter()
-        param.name = name
-        param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=float(value))
-        return param
-
-
     #MPPI paramok beállítása a controller_server set_parameters service-en...
     def set_mppi_parameters(self, vx_max, wz_max, vx_std, wz_std, cost_weight):      
         service_name = f"{self.controller_server_node}/set_parameters"
+		
+        mppi_paramters = [("FollowPathMPPI.vx_max", vx_max), ("FollowPathMPPI.wz_max", wz_max), ("FollowPathMPPI.vx_std", vx_std), 
+                    ("FollowPathMPPI.wz_std", wz_std), ("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
 
         if not self.mppi_set_params_client.wait_for_service(timeout_sec=0.5):
             self.get_logger().error(f"Service nem elérhető: {service_name} !!!!!!")
             return
 
         request = SetParameters.Request()
-        request.parameters = [self.make_double_param("FollowPathMPPI.vx_max", vx_max),self.make_double_param("FollowPathMPPI.wz_max", wz_max),
-                              self.make_double_param("FollowPathMPPI.vx_std", vx_std), self.make_double_param("FollowPathMPPI.wz_std", wz_std),
-                              self.make_double_param("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
+        request.parameters = []
+		
+		for name, value in mppi_paramters:
+			param = RosParameter()
+			param.name = name
+			param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=float(value))
+			
+			request.parameters.append(param)
+			
 
         future = self.mppi_set_params_client.call_async(request)
         #rclpy.spin_until_future_complete(self, future, timeout_sec=0.8) # EZ LEHET GONDOT FOG OKOZNI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -496,12 +497,15 @@ class PPOTrainer(Node):
     #Epizódot lezár, ment, bestet frissít és leáll...
     def finish_episode_and_shutdown(self, reason, goal_distance_m, min_range_m):     
         model_path = ""
+        is_model_path = False
 
         if self.is_training:
             self.ppo_trainer.finish_episode()
             model_path = self.find_latest_model_in_run_dir()
             
-            if model_path and os.path.exists(model_path):
+            is_model_path = model_path and os.path.exists(model_path)
+            
+            if is_model_path:
                 shutil.copyfile(model_path, self.latest_global_model_path)
 
         score = self.compute_score(reason, self.total_progress_m, self.step_index)
@@ -516,12 +520,10 @@ class PPOTrainer(Node):
     
         self.append_csv_row(self.global_metrics_csv, global_row)
 
-        if model_path and os.path.exists(model_path):
-            self.update_best_model(reason=reason, steps=self.step_index, min_range_m=min_range_m, progress_m=self.total_progress_m,
-                                          energy=self.total_energy,score=score, model_path=model_path)
+        if is_model_path:
+            self.update_best_model(reason,self.step_index, min_range_m,self.total_progress_m, self.total_energy, score, model_path)
 
-        self.get_logger().info(f"Epizód vége!!! Lépések={self.step_index} Ok={reason} Előrehaladás={self.total_progress_m:.3f} Energia={self.total_energy:.3f}" 
-                               f"Pontszám={score:.2f}")
+        self.get_logger().info(f"Epizód vége!!! Lépések={self.step_index} Ok={reason} Előrehaladás={self.total_progress_m:.3f} Energia={self.total_energy:.3f}" f"Pontszám={score:.2f}")
         self.get_logger().info("Leáll (1 launch = 1 epizód)....")
         rclpy.shutdown()
 
@@ -530,18 +532,18 @@ class PPOTrainer(Node):
     def find_latest_model_in_run_dir(self):
         try:
             all_files = os.listdir(self.run_dir)
-            pth_files = []
+            path_files = []
             
-            for f in all_files:
-                if f.endswith(".pth") and f != "latest.pth":
-                    pth_files.append(f)
+            for file in all_files:
+                if file.endswith(".pth") and file != "latest.pth":
+                    path_files.append(f)
             
-            if not pth_files:
+            if not path_files:
                 return ""
             
             file_paths = []
             
-            for filename in pth_files:
+            for filename in path_files:
                 full_path = os.path.join(self.run_dir, filename)
                 mod_time = os.path.getmtime(full_path)
                 file_paths.append((mod_time, full_path))
@@ -572,7 +574,7 @@ class PPOTrainer(Node):
         if reason != "goal":
             return
 
-        best_row = self.read_last_csv_row_as_dict(self.best_metrics_csv)
+        best_row = self.read_last_csv_row_in_dictionary(self.best_metrics_csv)
         if best_row is None:
             self.save_best(steps, min_range_m, progress_m, energy, score, model_path)
             return
