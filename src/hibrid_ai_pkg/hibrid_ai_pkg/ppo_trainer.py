@@ -174,7 +174,13 @@ class PPOTrainer(Node):
 
         self.sub_odom = self.create_subscription(Odometry, self.odom_topic, self.odom_callback, qos_odom)
         
-        timer_period_s = 1.0 / max(1e-6, self.control_hz)
+        if self.control_hz <= 0:
+            self.get_logger().error("Hibás control_hz!!!!! Alapértelmezett 10 Hz lesz!!!!")
+            effective_hz = 10.0
+        else:
+            effective_hz = self.control_hz
+
+        timer_period_s = 1.0 / effective_hz
         self.timer = self.create_timer(timer_period_s, self.on_control_tick)
 
         mode_text = "TRAIN" if self.is_training else "EVAL"
@@ -413,9 +419,7 @@ class PPOTrainer(Node):
         self.episode_wz_std = float(wz_std)
         self.episode_cost_weight = float(cost_weight)
 
-        self.set_mppi_parameters(vx_max=self.episode_vx_max,wz_max=self.episode_wz_max,vx_std=self.episode_vx_std,wz_std=self.episode_wz_std,
-                                  cost_weight=self.episode_cost_weight)
-
+        self.set_mppi_parameters(self.episode_vx_max,self.episode_wz_max,self.episode_vx_std,self.episode_wz_std,self.episode_cost_weight)
 
         self.previous_goal_distance_m = float(info["distance_goal"])
         self.total_progress_m = 0.0
@@ -429,7 +433,7 @@ class PPOTrainer(Node):
 
     # Action értéket [-1,1]-ből átmappel [out_min,out_max] tartományra...
     def map_action_to_range(self, action_value, out_min, out_max):
-        safe_action = float(max(-1.0, min(1.0, action_value)))
+        safe_action = float(max(-1.0, min(1.0, action_value))) # np.clip(action_value, -1, 1)
         normalized = (safe_action + 1.0) * 0.5
         
         return float(out_min + normalized * (out_max - out_min))
