@@ -54,7 +54,6 @@ class PPOProduct(Node):
 
         self.best_model_path = os.path.join(self.runs_dir, "best_latest.pth")
 
-
         self.latest_odom = None
         self.latest_scan = None
         self.latest_path = None
@@ -62,17 +61,14 @@ class PPOProduct(Node):
         self.step_index = 0
         self.set_once = False
 
-
         self.state_dim = 5 + self.lidar_sector
         self.action_dim = 5
         self.ppo_trainer = PPOTraining(state_dim=self.state_dim, action_dim=self.action_dim)
 
         self.load_best_model_if_exists()
-
-     
+  
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
-
 
         self.mppi_set_params_client = self.create_client(SetParameters,f"{self.controller_server_node}/set_parameters" )
 
@@ -100,8 +96,13 @@ class PPOProduct(Node):
         qos_odom.durability = DurabilityPolicy.VOLATILE
         self.sub_odom = self.create_subscription(Odometry, self.odom_topic, self.odom_callback, qos_odom)
 
+        if self.control_hz <= 0:
+            self.get_logger().error("Hibás control_hz!!!!! Alapértelmezett 10 Hz lesz!!!!")
+            effective_hz = 10.0
+        else:
+            effective_hz = self.control_hz
 
-        timer_period_sec = 1.0 / max(1e-6, self.control_hz)
+        timer_period_s = 1.0 / effective_hz     
         self.timer = self.create_timer(timer_period_sec, self.on_control_tick)
 
         self.get_logger().info("PPOProduct indul. Egyszeri MPPI param beállítás...")
@@ -198,7 +199,7 @@ class PPOProduct(Node):
         cost_weight = self.map_action_to_range(float(action_array[4]), COST_WEIGHT_MIN, COST_WEIGHT_MAX)
 
 
-        self.set_mppi_parameters(vx_max=vx_max, wz_max=wz_max, vx_std=vx_std,wz_std=wz_std, cost_weight=cost_weight, info=info)
+        self.set_mppi_parameters(vx_max, wz_max, vx_std,wz_std, cost_weight, info)
         self.set_once = True 
 
  
@@ -208,20 +209,20 @@ class PPOProduct(Node):
         
         return float(out_min + normalized * (out_max - out_min))
 
-
-    def make_double_param(self, name, value):
-        param = RosParameter()
-        param.name = name
-        param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=float(value))
-        
-        return param
-
-    
+ 
     def set_mppi_parameters(self, vx_max, wz_max, vx_std, wz_std, cost_weight, info):
+        mppi_paramters = [("FollowPathMPPI.vx_max", vx_max), ("FollowPathMPPI.wz_max", wz_max), ("FollowPathMPPI.vx_std", vx_std),
+                          ("FollowPathMPPI.wz_std", wz_std), ("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
+        
         request = SetParameters.Request()
-        request.parameters = [self.make_double_param("FollowPathMPPI.vx_max", vx_max),self.make_double_param("FollowPathMPPI.wz_max", wz_max),
-                              self.make_double_param("FollowPathMPPI.vx_std", vx_std),self.make_double_param("FollowPathMPPI.wz_std", wz_std),
-                              self.make_double_param("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
+        request.parameters = []
+        
+        for name, value in mppi_paramters:
+			param = RosParameter()
+			param.name = name
+			param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=float(value))
+			
+			request.parameters.append(param)
 
         # eltesszük, hogy a callback tudjon logolni (nálad úgyis egyszer fut)
         self.last_setparams_request = request
@@ -245,9 +246,9 @@ class PPOProduct(Node):
             info = self.last_setparams_info
             vx_max, wz_max, vx_std, wz_std, cost_weight = self.last_setparams_values
 
-            for i, r in enumerate(res.results):
-                if not r.successful:
-                    self.get_logger().error(f"Sikertelen: {request.parameters[i].name} reason={r.reason} !!!!!!")
+            for i, result in enumerate(res.results):
+                if not result.successful:
+                    self.get_logger().error(f"Sikertelen: {request.parameters[i].name} reason={result.reason} !!!!!!")
                     return
 
             self.get_logger().warn(f"MPPI paramok beállítva OK: vx_max={vx_max:.3f} wz_max={wz_max:.3f} vx_std={vx_std:.3f} wz_std={wz_std:.3f} cost_w={cost_weight:.3f} | "
@@ -258,39 +259,39 @@ class PPOProduct(Node):
 
     
     def build_state_and_info(self, odom, scan, path):
-        robot_x, robot_y = self.get_robot_pose_from_odom_in_map(odom)
-        if robot_x is None:
+        robot_map_x, robot_map_y = self.get_robot_pose_from_odom_in_map(odom)
+        if robot_map_x is None:
             return None, None
 
-        robot_v = float(odom.twist.twist.linear.x)
-        robot_w = float(odom.twist.twist.angular.z)
+        robot_linear_speed = float(odom.twist.twist.linear.x)
+        robot_angular_speed = float(odom.twist.twist.angular.z)
 
-        goal_x = float(path.poses[-1].pose.position.x)
-        goal_y = float(path.poses[-1].pose.position.y)
-        goal_distance_m = math.hypot(goal_x - robot_x, goal_y - robot_y)
+        goal_map_x = float(path.poses[-1].pose.position.x)
+        goal_map_y = float(path.poses[-1].pose.position.y)
+        goal_distance_m = math.hypot(goal_map_x - robot_map_x, goal_map_y - robot_map_y)
 
-        clean_ranges = []
+        cleaned_ranges = []
         max_range = self.lidar_max_range_m
 
         for i in scan.ranges:
             if 0 < i <= max_range and not math.isnan(i) and math.isfinite(i):
-                clean_ranges.append(i)
+                cleaned_ranges.append(i)
             else:
-                clean_ranges.append(max_range)
+                cleaned_ranges.append(max_range)
 
-        if clean_ranges:
-            min_range_m = min(clean_ranges)
-            normalized_lidar_sector = self.lidar_sector_min_distances(clean_ranges)
+        if cleaned_ranges:
+            min_range_m = min(cleaned_ranges)
+            normalized_lidar_sector = self.lidar_sector_min_distances(cleaned_ranges)
         else:
             min_range_m = max_range
             normalized_lidar_sector = [1.0] * self.lidar_sector
 
-        cross_track_error_m = self.compute_cross_track_error(robot_x, robot_y, path)
+        cross_track_error_m = self.compute_cross_track_error(robot_map_x, robot_map_y, path)
 
         normalized_goal_distance = min(goal_distance_m / 20.0, 1.0)
         normalized_cross_track_error = min(cross_track_error_m / 2.0, 1.0)
-        normalized_linear_velocity = max(min(robot_v / 1.0, 1.0), -1.0)
-        normalized_angular_velocity = max(min(robot_w / 1.5, 1.0), -1.0)
+        normalized_linear_velocity = max(min(robot_linear_speed / 1.0, 1.0), -1.0)
+        normalized_angular_velocity = max(min(robot_angular_speed / 1.5, 1.0), -1.0)
         normalized_min_lidar_range = min_range_m / max_range
 
         state = [normalized_goal_distance,normalized_linear_velocity, normalized_angular_velocity, normalized_min_lidar_range, normalized_cross_track_error] + normalized_lidar_sector
@@ -302,21 +303,21 @@ class PPOProduct(Node):
     
     def lidar_sector_min_distances(self, scan_ranges):
         total_points = len(scan_ranges)
-        points_per_bin = max(1, total_points // self.lidar_sector)
+        points_per_sector = max(1, total_points // self.lidar_sector)
 
-        result = []
+        normalized_lidar_sector_result = []
         for i in range(self.lidar_sector):
-            start = i * points_per_bin
-            end = min(total_points, (i + 1) * points_per_bin)
+            sector_start = i * points_per_sector
+            sector_end = min(total_points, (i + 1) * points_per_sector)
 
-            if start >= total_points:
+            if sector_start >= total_points:
                 minimum_distance = self.lidar_max_range_m
             else:
-                minimum_distance = np.min(scan_ranges[start:end])
+                minimum_distance = np.min(scan_ranges[sector_start:sector_end])
 
-            result.append(minimum_distance / self.lidar_max_range_m)
+            normalized_lidar_sector_result.append(minimum_distance / self.lidar_max_range_m)
 
-        return result
+        return normalized_lidar_sector_result
 
     
     def compute_cross_track_error(self, robot_x, robot_y, path, radius=5.0):     
@@ -326,8 +327,8 @@ class PPOProduct(Node):
         best_min_distance = float('inf')
         
         for pose_stamped in path.poses:
-            path_x = float(pose_stamped.pose.position.x)
-            path_y = float(pose_stamped.pose.position.y)        
+            path_x = pose_stamped.pose.position.x
+            path_y = pose_stamped.pose.position.y       
             delta_x = path_x - robot_x
             delta_y = path_y - robot_y
             
@@ -347,8 +348,8 @@ class PPOProduct(Node):
         #odom_point.header.stamp = self.get_clock().now().to_msg()
         odom_point.header.stamp = odom.header.stamp
 
-        odom_point.point.x = float(odom.pose.pose.position.x)
-        odom_point.point.y = float(odom.pose.pose.position.y)
+        odom_point.point.x = odom.pose.pose.position.x
+        odom_point.point.y = odom.pose.pose.position.y
         odom_point.point.z = 0.0
 
         try:
