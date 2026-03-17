@@ -70,31 +70,25 @@ class MetricsLog(Node):
         self.finished = False
         self.start_time = None
         self.last_move_time = None
-
         self.collision_count = 0
         self.collision_samples = 0
-        self._in_collision = False
-
+        self.in_collision = False
         self.deviation_sum = 0.0
         self.deviation_sq_sum = 0.0
         self.deviation_max = 0.0
         self.deviation_n = 0
-
-        self.prev_rx = None
-        self.prev_ry = None
-        self.start_rx = None
-        self.start_ry = None
+        self.previous_robot_map_x = None
+        self.previous_robot_map_y = None
+        self.start_robot_map_x = None
+        self.start_robot_map_y = None
         self.path_length = 0.0
-
         self.total_samples = 0
         self.stop_samples = 0
-
         self.danger_distance = 0.8
         self.danger_samples = 0
-
         self.energy_sum = 0.0
-        self.prev_v = None
-        self.prev_w = None
+        self.previous_linear_speed_v = None
+        self.previous_angular_speed_w = None
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -160,76 +154,74 @@ class MetricsLog(Node):
 
     def on_timer(self):
 
-        if self.finished or not self.run_started:
-            
+        if self.finished or not self.run_started:      
             return
 
         if self.last_odom is None or self.last_scan is None:
-            
             return
 
-        rx, ry = self.robot_xy_in_map(self.last_odom)
-        if rx is None:
-            
+        robot_map_x, robot_map_y = self.get_robot_pose_from_odom_in_map(self.last_odom)
+        if robot_map_x is None:         
             return
 
         #Start pozíció
-        if self.start_rx is None:
-            self.start_rx = rx
-            self.start_ry = ry
+        if self.start_robot_map_x is None:
+            self.start_robot_map_x = robot_map_x
+            self.start_robot_map_y = robot_map_y
 
         #Megtett út
-        if self.prev_rx is not None:
-            dx = rx - self.prev_rx
-            dy = ry - self.prev_ry
-            self.path_length += math.sqrt(dx*dx + dy*dy)
+        if self.previous_robot_map_x is not None:
+            delta_x = robot_map_x - self.previous_robot_map_x
+            delta_y = robot_map_y - self.previous_robot_map_y
+            self.path_length = self.path_length + math.hypot(delta_x, delta_y)
 
-        self.prev_rx = rx
-        self.prev_ry = ry
+        self.previous_robot_map_x = robot_map_x
+        self.previous_robot_map_y = robot_map_y
 
         #Ütközés
         min_range = self.min_range(self.last_scan)
         in_collision = min_range < self.collision_distance
 
-        if in_collision and not self._in_collision:
-            self.collision_count += 1
+        if in_collision and not self.in_collision:
+            self.collision_count = self.collision_count + 1
 
         if in_collision:
-            self.collision_samples += 1
+            self.collision_samples = self.collision_samples +1
 
-        self._in_collision = in_collision
+        self.in_collision = in_collision
 
         # Danger
         if min_range < self.danger_distance:
-            self.danger_samples += 1
+            self.danger_samples = self.danger_samples+ 1
 
         # Deviation
         if self.last_path is not None and len(self.last_path.poses) >= 2:
-            dev = self.path_deviation(self.last_odom, self.last_path)
-            self.deviation_sum += dev
-            self.deviation_sq_sum += dev * dev
-            self.deviation_max = max(self.deviation_max, dev)
-            self.deviation_n += 1
+            deviation = self.path_deviation(self.last_odom, self.last_path)
+            self.deviation_sum = self.deviation_sum + deviation
+            self.deviation_sq_sum = self.deviation_sq_sum + (deviation * deviation)
+            self.deviation_max = max(self.deviation_max, deviation)
+            self.deviation_n = self.deviation_n + 1
 
         # Stop arány
-        self.total_samples += 1
+        self.total_samples = self.total_samples + 1
         if self.last_cmd is not None:
             speed = abs(self.last_cmd.linear.x) + abs(self.last_cmd.angular.z)
             if speed < self.stop_speed_eps:
-                self.stop_samples += 1
+                self.stop_samples= self.stop_samples + 1
 
         # Energia
         if self.last_cmd is not None:
-            v = self.last_cmd.linear.x
-            w = self.last_cmd.angular.z
+            linear_speed_v = self.last_cmd.linear.x
+            angular_speed_w = self.last_cmd.angular.z
 
-            if self.prev_v is not None:
-                dv = abs(v - self.prev_v)
-                dw = abs(w - self.prev_w)
-                self.energy_sum += dv + self.turn_weight * dw
+            if self.previous_linear_speed_v is not None:
+                delta_linear_speed_v = abs(linear_speed_v - self.previous_linear_speed_v)
+                delta_angular_speed_w = abs(angular_speed_w - self.previous_angular_speed_w)
+                
+                self.energy_sum = self.energy_sum + (delta_linear_speed_v + self.turn_weight * delta_angular_speed_w)
 
-            self.prev_v = v
-            self.prev_w = w
+            self.previous_linear_speed_v = linear_speed_v
+            self.previous_angular_speed_w = angular_speed_w
 
         #Stop feltétel
         now = self.now_sec()
@@ -240,8 +232,8 @@ class MetricsLog(Node):
             if self.last_path is None:
                 return
             
-            dist_goal = self.distance_to_goal(self.last_odom, self.last_path)
-            if dist_goal > self.goal_tolerance:
+            distance_goal = self.distance_to_goal(self.last_odom, self.last_path)
+            if distance_goal > self.goal_tolerance:
                 return
 
         self.finish_run()
@@ -250,25 +242,33 @@ class MetricsLog(Node):
     def finish_run(self):
 
         self.finished = True
-        exec_time = self.now_sec() - self.start_time
-        mean_dev = self.deviation_sum / self.deviation_n if self.deviation_n > 0 else 0.0
-        rms_dev = math.sqrt(self.deviation_sq_sum / self.deviation_n) if self.deviation_n > 0 else 0.0
+        execute_time = self.now_sec() - self.start_time
+        mean_deviation = self.deviation_sum / self.deviation_n if self.deviation_n > 0 else 0.0
+        rms_deviation = math.sqrt(self.deviation_sq_sum / self.deviation_n) if self.deviation_n > 0 else 0.0
         stop_ratio = self.stop_samples / self.total_samples if self.total_samples > 0 else 0.0
         danger_ratio = self.danger_samples / self.total_samples if self.total_samples > 0 else 0.0
         collision_duration = self.collision_samples * 0.1
 
         # kerülő arány
-        if self.start_rx is not None and self.last_path is not None:
-            goal_x = self.last_path.poses[-1].pose.position.x
-            goal_y = self.last_path.poses[-1].pose.position.y
-            straight = math.hypot(goal_x - self.start_rx, goal_y - self.start_ry)
+        if self.start_robot_map_x is not None and self.last_path is not None:
+            goal_map_x = self.last_path.poses[-1].pose.position.x
+            goal_map_y = self.last_path.poses[-1].pose.position.y
+            
+            straight = math.hypot(goal_map_x - self.start_robot_map_x, goal_map_y - self.start_robot_map_y)
         else:
             straight = 0.0
 
-        detour_ratio = self.path_length / straight if straight > 1e-6 else 0.0
 
-        success = 1 if self.collision_count == 0 else 0
-        #finish_reason = "goal" if success else "collision"
+        if straight > 1e-6:
+            path_deviation_ratio = self.path_length / straight
+        else:
+            path_deviation_ratio = 0.0
+
+
+        if self.collision_count == 0:
+            success = 1 
+        else:
+            success = 0
 
         out_path = os.path.join(self.csv_dir, "osszes_eredmeny.csv")
         write_header = not os.path.exists(out_path)
@@ -281,9 +281,9 @@ class MetricsLog(Node):
 
         with open(out_path, "a", newline="") as f:
             w = csv.writer(f)
-            w.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), self.modszer,self.palya, f"{exec_time:.3f}",
-                        self.collision_count,success,f"{mean_dev:.4f}",f"{self.deviation_max:.4f}", f"{rms_dev:.4f}", f"{self.path_length:.3f}",
-                        f"{detour_ratio:.3f}",f"{stop_ratio:.3f}",f"{danger_ratio:.3f}",f"{collision_duration:.3f}",f"{self.energy_sum:.4f}"] )
+            w.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), self.modszer,self.palya, f"{execute_time:.3f}",
+                        self.collision_count,success,f"{mean_deviation:.4f}",f"{self.deviation_max:.4f}", f"{rms_deviation:.4f}", f"{self.path_length:.3f}",
+                        f"{path_deviation_ratio:.3f}",f"{stop_ratio:.3f}",f"{danger_ratio:.3f}",f"{collision_duration:.3f}",f"{self.energy_sum:.4f}"] )
 
         self.get_logger().debug("METRICS MENTVE......")
         rclpy.shutdown()
@@ -294,47 +294,55 @@ class MetricsLog(Node):
         
         return float(np.min(ranges)) if ranges.size > 0 else 999.0
 
+
     def path_deviation(self, odom, path):
-        rx, ry = self.robot_xy_in_map(odom)
-        if rx is None:
+        robot_map_x, robot_map_y = self.get_robot_pose_from_odom_in_map(odom)
+        if robot_map_x is None:
             return 0.0
 
-        best = 1e9
-        for p in path.poses:
-            px = p.pose.position.x
-            py = p.pose.position.y
-            d = math.hypot(px - rx, py - ry)
-            if d < best:
-                best = d
+        best_min_distance = float('inf')
+        
+        for pose_stamped in path.poses:
+            path_x = pose_stamped.pose.position.x
+            path_y = pose_stamped.pose.position.y
+            delta_x = path_x - robot_map_x
+            delta_y = path_y - robot_map_y
+            
+            euclides_distance = math.hypot(delta_x, delta_y)    
+            best_min_distance = min(best_min_distance, euclides_distance)
                 
-        return best
+        return best_min_distance
+    
 
     def distance_to_goal(self, odom, path):
-        rx, ry = self.robot_xy_in_map(odom)
-        if rx is None:
-            return 999.0
+        robot_map_x, robot_map_y = self.get_robot_pose_from_odom_in_map(odom)
+        if robot_map_x is None:
+            return 0.0
 
-        goal_x = path.poses[-1].pose.position.x
-        goal_y = path.poses[-1].pose.position.y
+        goal_map_x = path.poses[-1].pose.position.x
+        goal_map_y = path.poses[-1].pose.position.y
         
-        return math.hypot(goal_x - rx, goal_y - ry)
+        return math.hypot(goal_map_x - robot_map_x, goal_map_y - robot_map_y)
 
-    def robot_xy_in_map(self, odom):
+
+    def get_robot_pose_from_odom_in_map(self, odom):
         
-        p = PointStamped()
-        p.header.frame_id = odom.header.frame_id
-        p.header.stamp = odom.header.stamp
-        p.point.x = odom.pose.pose.position.x
-        p.point.y = odom.pose.pose.position.y
-        p.point.z = 0.0
+        odom_point = PointStamped()
+        odom_point.header.frame_id = odom.header.frame_id
+        odom_point.header.stamp = odom.header.stamp
+
+        odom_point.point.x = odom.pose.pose.position.x
+        odom_point.point.y = odom.pose.pose.position.y
+        odom_point.point.z = 0.0
 
         try:
-            tf = self.tf_buffer.lookup_transform("map", p.header.frame_id, rclpy.time.Time())
-            p_map = do_transform_point(p, tf)
+            transform = self.tf_buffer.lookup_transform("map", p.header.frame_id, rclpy.time.Time())
+            map_point = do_transform_point(odom_point, transform)
             
-            return p_map.point.x, p_map.point.y
+            return map_point.point.x, map_point.point.y
         
         except Exception:
+            self.get_logger().error(f"TF hiba van: {e} !!!!!")
             return None, None
 
 

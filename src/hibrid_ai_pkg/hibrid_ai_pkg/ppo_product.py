@@ -235,10 +235,10 @@ class PPOProduct(Node):
         self.get_logger().info("MPPI paramok elküldve (async)....")
         
 
-    def on_set_mppi_parameters_done(self, fut):
+    def on_set_mppi_parameters_done(self, future):
         try:
-            res = fut.result()
-            if res is None:
+            eredmeny = future.result()
+            if eredmeny is None:
                 self.get_logger().error("set_parameters: nincs válasz (None)!!!!!")
                 return
 
@@ -246,7 +246,7 @@ class PPOProduct(Node):
             info = self.last_setparams_info
             vx_max, wz_max, vx_std, wz_std, cost_weight = self.last_setparams_values
 
-            for i, result in enumerate(res.results):
+            for i, result in enumerate(eredmeny.results):
                 if not result.successful:
                     self.get_logger().error(f"Sikertelen: {request.parameters[i].name} reason={result.reason} !!!!!!")
                     return
