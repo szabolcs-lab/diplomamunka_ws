@@ -44,7 +44,7 @@ class ActorCriticNetwork(nn.Module):
     def save_in_file(self):
         print("Hálózat mentése indul...")
         torch.save({"actor": self.actor.state_dict(),"critic": self.critic.state_dict(),"actor_optimizer": self.actor_optim.state_dict(),
-                    "critic_optimizer": self.critic_optim.state_dict(), "szigma": self.sigma}, self.save_file)
+                    "critic_optimizer": self.critic_optim.state_dict(), "sigma": self.sigma}, self.save_file)
         
         print(f"Mentve: {self.save_file}")
 

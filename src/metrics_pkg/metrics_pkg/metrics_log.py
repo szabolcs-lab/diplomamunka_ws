@@ -336,7 +336,7 @@ class MetricsLog(Node):
         odom_point.point.z = 0.0
 
         try:
-            transform = self.tf_buffer.lookup_transform("map", p.header.frame_id, rclpy.time.Time())
+            transform = self.tf_buffer.lookup_transform("map", odom_point.header.frame_id, rclpy.time.Time())
             map_point = do_transform_point(odom_point, transform)
             
             return map_point.point.x, map_point.point.y

@@ -116,7 +116,8 @@ class Nav2PathClient(Node):
     # Goal küldése a Nav2 FollowPath action szervernek...
     def send_path_as_goal(self, msg: Path):
         self.get_logger().info(f'FollowPath goal küldése, poses={len(msg.poses)}...')
-
+        
+    
         goal_msg = FollowPath.Goal()
         goal_msg.path = msg
 
@@ -124,7 +125,7 @@ class Nav2PathClient(Node):
         self.last_goal_sent_time = time.time()
         self.last_goal_xy = self.path_goal_xy(msg)
 
-        self.last_front_path = self.calculate_path_signature(msg)
+        self.last_front_path = self.calculate_front_path(msg)
 
         send_goal_future = self._client.send_goal_async(goal_msg)
         send_goal_future.add_done_callback(self.goal_response_callback)
@@ -158,7 +159,7 @@ class Nav2PathClient(Node):
         
     # A Path elejének levágása a robothoz legközelebbi pontra...
     def slice_path_to_robot(self, path_msg: Path): 
-        MAX_SLICE_PATH = 40
+        #MAX_SLICE_PATH = 40
           
         robott_x, robot_y = self.get_actual_robot_pose_in_map()
         
@@ -181,7 +182,7 @@ class Nav2PathClient(Node):
                 closest_distance_sq = distance_squared
                 closest_path_index = i
                      
-        closest_path_index = min(closest_path_index, MAX_SLICE_PATH)
+        #closest_path_index = min(closest_path_index, MAX_SLICE_PATH)
         
         if len(path_msg.poses) - closest_path_index < 3:
             self.get_logger().warn(f"Túl rövid a path ({len(path_msg.poses)-closest_path_index} pont....)")
@@ -190,6 +191,7 @@ class Nav2PathClient(Node):
         sliced_path = Path()
         sliced_path.header = path_msg.header
         sliced_path.poses = path_msg.poses[closest_path_index:]
+          
         
         self.get_logger().debug(f"Path levágva: {closest_path_index} - {len(sliced_path.poses)} pont...")
         

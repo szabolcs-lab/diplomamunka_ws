@@ -463,13 +463,13 @@ class PPOTrainer(Node):
         
         return energy_step
 
-
+    '''
     #MPPI paramok beállítása a controller_server set_parameters service-en...
     def set_mppi_parameters(self, vx_max, wz_max, vx_std, wz_std, cost_weight):      
         service_name = f"{self.controller_server_node}/set_parameters"
 		
         mppi_paramters = [("FollowPathMPPI.vx_max", vx_max), ("FollowPathMPPI.wz_max", wz_max), ("FollowPathMPPI.vx_std", vx_std), 
-                    ("FollowPathMPPI.wz_std", wz_std), ("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
+                          ("FollowPathMPPI.wz_std", wz_std), ("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
 
         if not self.mppi_set_params_client.wait_for_service(timeout_sec=0.5):
             self.get_logger().error(f"Service nem elérhető: {service_name} !!!!!!")
@@ -479,7 +479,7 @@ class PPOTrainer(Node):
         request.parameters = []
 		
 		for name, value in mppi_paramters:
-			param = RosParameter()
+		    param = RosParameter()
 			param.name = name
 			param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=float(value))
 			
@@ -497,6 +497,38 @@ class PPOTrainer(Node):
             if not result.successful:
                 self.get_logger().error(f"Sikertelen: {request.parameters[i].name} reason={result.reason} !!!!!!!")
 
+    '''
+    # MPPI paramok beállítása a controller_server set_parameters service-en...
+    def set_mppi_parameters(self, vx_max, wz_max, vx_std, wz_std, cost_weight):
+        service_name = f"{self.controller_server_node}/set_parameters"
+
+        mppi_paramters = [("FollowPathMPPI.vx_max", vx_max),("FollowPathMPPI.wz_max", wz_max), ("FollowPathMPPI.vx_std", vx_std),
+                           ("FollowPathMPPI.wz_std", wz_std),("FollowPathMPPI.CostCritic.cost_weight", cost_weight)]
+
+        if not self.mppi_set_params_client.wait_for_service(timeout_sec=0.5):
+            self.get_logger().error(f"Service nem elérhető: {service_name} !!!!!!")
+            return
+
+        request = SetParameters.Request()
+        request.parameters = []
+
+        for name, value in mppi_paramters:
+            param = RosParameter()
+            param.name = name
+            param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE,double_value=float(value))
+            
+            request.parameters.append(param)
+
+        future = self.mppi_set_params_client.call_async(request)
+        # rclpy.spin_until_future_complete(self, future, timeout_sec=0.8)
+
+        if future.result() is None:
+            self.get_logger().error("Timeout hiba a paraméterküldésnél!!!!!!!!!")
+            return
+
+        for i, result in enumerate(future.result().results):
+            if not result.successful:
+                self.get_logger().error(f"Sikertelen: {request.parameters[i].name} reason={result.reason} !!!!!!!")
 
     #Epizódot lezár, ment, bestet frissít és leáll...
     def finish_episode_and_shutdown(self, reason, goal_distance_m, min_range_m):     
@@ -540,7 +572,7 @@ class PPOTrainer(Node):
             
             for file in all_files:
                 if file.endswith(".pth") and file != "latest.pth":
-                    path_files.append(f)
+                    path_files.append(file)
             
             if not path_files:
                 return ""

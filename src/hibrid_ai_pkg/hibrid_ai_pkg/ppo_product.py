@@ -102,7 +102,7 @@ class PPOProduct(Node):
         else:
             effective_hz = self.control_hz
 
-        timer_period_s = 1.0 / effective_hz     
+        timer_period_sec = 1.0 / effective_hz     
         self.timer = self.create_timer(timer_period_sec, self.on_control_tick)
 
         self.get_logger().info("PPOProduct indul. Egyszeri MPPI param beállítás...")
@@ -218,11 +218,11 @@ class PPOProduct(Node):
         request.parameters = []
         
         for name, value in mppi_paramters:
-			param = RosParameter()
-			param.name = name
-			param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=float(value))
-			
-			request.parameters.append(param)
+            param = RosParameter()
+            param.name = name
+            param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE,double_value=float(value))
+            
+            request.parameters.append(param)
 
         # eltesszük, hogy a callback tudjon logolni (nálad úgyis egyszer fut)
         self.last_setparams_request = request
