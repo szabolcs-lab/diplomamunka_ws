@@ -8,7 +8,7 @@ import os
 
 def generate_launch_description():
     
-    package_dir = get_package_share_directory('d_star_lite_pkg')
+    package_dir = get_package_share_directory('hibrid_ai_pkg')
     simulation_resources_dir = get_package_share_directory('simulation_resources_pkg')
     simulation_resources_maps_dir = os.path.join(simulation_resources_dir, 'maps')
     map_file_arg = DeclareLaunchArgument('map_file', default_value='occupancy_grid_1.csv')
@@ -23,7 +23,7 @@ def generate_launch_description():
 
     
     map_publication = Node(
-        package='d_star_lite_pkg',
+        package='hibrid_ai_pkg',
         executable='map_publication',
         name='map_publication',
         output='screen',
@@ -35,7 +35,7 @@ def generate_launch_description():
     
  
     d_star_lite_path_planner = Node(
-        package='d_star_lite_pkg',
+        package='hibrid_ai_pkg',
         executable='d_star_lite_path_planner',
         name='d_star_lite_path_planner',
         output='screen',
@@ -76,7 +76,7 @@ def generate_launch_description():
     
     
     tf_broadcaster = Node(
-        package='d_star_lite_pkg',
+        package='hibrid_ai_pkg',
         executable='tf_broadcaster',
         name='tf_broadcaster',
         output='screen',

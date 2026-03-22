@@ -43,20 +43,20 @@ class Nav2PathClient(Node):
         self.cancel_in_progress = False
         self.last_front_path = None
 
-        self._tf_buffer = Buffer()
-        self._tf_listener = TransformListener(self._tf_buffer, self)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         qos = QoSProfile(depth=10) 
         qos.reliability = ReliabilityPolicy.RELIABLE
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL 
 
-        self._path_sub = self.create_subscription(Path, path_topic, self.path_callback, qos)
+        self.path_subscription = self.create_subscription(Path, path_topic, self.path_callback, qos)
 
         # létrehozunk egy action client-et a Nav2 FollowPath-hoz
-        self._client = ActionClient(self, FollowPath, 'follow_path')
+        self.client = ActionClient(self, FollowPath, 'follow_path')
 
         self.get_logger().info('Várakozás a FollowPath action szerverre...')
-        self._client.wait_for_server()
+        self.client.wait_for_server()
         
         self.get_logger().info('FollowPath action szerver elérhető...')
         self.get_logger().info('Nav2 Path Client node inicializálva...')
@@ -127,7 +127,7 @@ class Nav2PathClient(Node):
 
         self.last_front_path = self.calculate_front_path(msg)
 
-        send_goal_future = self._client.send_goal_async(goal_msg)
+        send_goal_future = self.client.send_goal_async(goal_msg)
         send_goal_future.add_done_callback(self.goal_response_callback)
 
     #Goal response callback
@@ -201,7 +201,7 @@ class Nav2PathClient(Node):
     # A robot aktuális pozíciójának lekérdezése map frame-ben...
     def get_actual_robot_pose_in_map(self):
         try:
-            tf = self._tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
+            tf = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
             robot_map_x = tf.transform.translation.x
             robot_map_y = tf.transform.translation.y
             return robot_map_x, robot_map_y
