@@ -35,14 +35,10 @@ class DStarLitePathPlanner(Node):
         
         self.start = (199, 0)
         self.goal  = (2, 198) #(0, 199)
-        self.grid = None
-        
+        self.grid = None  
         self.map_info = None # OccupancyGrid.info elmentve
-        self.planner = None # DStarLite példány
-        
-        self.last_path_msg = None # ez az alapútvonal miatt kell, hogy eltároljuk
-        
-        
+        self.planner = None # DStarLite példány 
+        self.last_path_msg = None # ez az alapútvonal miatt kell, hogy eltároljuk  
         self.static_metrics_logged = False
         self.dynamic_replan_logged = False
         
@@ -88,7 +84,7 @@ class DStarLitePathPlanner(Node):
             self.path_pub.publish(self.last_path_msg)
             self.path_debug_pub.publish(self.last_path_msg) 
     
-    def map_callback(self, msg: OccupancyGrid):
+    def map_callback(self, msg):
         
         try:
             
@@ -105,7 +101,7 @@ class DStarLitePathPlanner(Node):
             # az akadályok körül csinálunk egy biztonsági zónát, kipárnázzuk, hogy a robot tudjon egy biztosági távolságot tartani
             margin_m = self.get_parameter('margin').get_parameter_value().double_value
             cells_radius = max(1, int(math.ceil(margin_m / float(msg.info.resolution))))
-            grid_dilated = self.dilate_obstacles(grid_bin, cells_radius)
+            grid_dilated = self.obstacles_padding_extends(grid_bin, cells_radius)
             
             if self.planner is None:
                 
@@ -205,7 +201,7 @@ class DStarLitePathPlanner(Node):
             self.get_logger().error(f"map_callback hiba: {e}\n{traceback.format_exc()}")
             
     # átalakítjuk az útvonalat és elküldjük 
-    def path_publish(self, path_cells: list, map_info: OccupancyGrid):
+    def path_publish(self, path_cells, map_info):
         
         
         resolution = float(map_info.resolution)
@@ -262,7 +258,7 @@ class DStarLitePathPlanner(Node):
        
        
     # akadáloky párnázása 
-    def dilate_obstacles(self, grid: np.ndarray, radius_cells: int):
+    def obstacles_padding_extends(self, grid, radius_cells):
         map_height, map_width = grid.shape
         dilaated_grid = grid.copy()
         
@@ -292,47 +288,7 @@ class DStarLitePathPlanner(Node):
         return dilaated_grid
 
     
-    """         
-    # az útvonal pontjait simítjuk, hogy eggyenletes legyen      
-    def resample_path(self, points: list, step=0.1):
-        if not points:
-            return []
-        
-        out = [points[0]]
-        remainder = 0.0
-        
-        for i in range(len(points) -1):
-            x0, y0 = points[i] # aktuális pont
-            x1, y1 = points[i + 1] # köbetkező pont
-            
-            # két pont közötti távolság
-            direction_x, direction_y = x1 - x0, y1 - y0
-            segment_length = math.sqrt(direction_x**2 + direction_y**2)
-            
-            # ha ez az előbb kiszámolt távolság nagyon kicsit, akkor lépünk egyet az iterációban
-            if segment_length < 1e-9:
-                continue
-            
-            # kiszámoljuk az x és y egységvektort
-            unit_vector_x, unit_vector_y = direction_x/segment_length, direction_y/segment_length
-            # maradék távolság ami hiányzott az előző szakaszból, hogy pontosan step távolságra tudjunk lépni
-            s = step - remainder
-            
-            # addig csinálunk az adott szakaszban új pontokat, amyg a szegmens hossz nagyobb vagy egyenlő
-            while s <= segment_length:
-                out.append((x0 + unit_vector_x * s, y0 + unit_vector_y * s))
-                s += step
-            
-            # új maradék távolság az utolsó elhelyezett ponttól a szakasz végéig; ez lesz a következő iteráció elején a maradék    
-            remainder = segment_length - (s - step)
-        
-        # hogy ne legyen levágva az út vége, ezzel garantáljuk, hogy mindig az eredeti célponton legyen a resample vége   
-        if out[-1] != points[-1]:
-            out.append(points[-1])
-            
-        return out
-    """
-    def resample_path(self, path_points: list[tuple[float, float]], step: float = None):
+    def resample_path(self, path_points, step = None):
         """
         Robotikai útvonal resampling egyenletes távolságraa.
         Minden új pont pontosan 'step' távolságra van egymástól.
