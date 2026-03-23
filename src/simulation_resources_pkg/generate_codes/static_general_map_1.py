@@ -14,14 +14,14 @@ def generate_occupancy_grid(walls, grid_size_x, grid_size_y, resolution):
     # a vilg koordinátákat itt alakítjuk át gridre, ahol a sor az y lesz és az x az oszlop lesz 
     cells_x = int(grid_size_x / resolution)
     cells_y = int(grid_size_y / resolution)
-    grid = np.zeros((cells_y, cells_x), dtype=np.int8) # 2D numpy tömb, ami a rács lesz
+    grid = np.zeros((cells_y, cells_x), dtype=np.int8) # 2D numpy tömb
 
     def world_to_grid(x, y):
         grid_x = int((x + grid_size_x/2) / resolution)
         grid_y = int((y + grid_size_y/2) / resolution)
         return grid_x, grid_y
  
-    # a falak listáján végigmegyünk
+   
     for wall in walls:
         x = wall['x']
         y = wall['y']
@@ -29,20 +29,18 @@ def generate_occupancy_grid(walls, grid_size_x, grid_size_y, resolution):
         size_y = wall['size_y']
         yaw = wall.get('yaw', 0)
 
-        # Grid cellák koordinátái
         for grid_y in range(cells_y):
             for grid_x in range(cells_x):
                 
-                # itt számoljuk ki, hogy a grid_x és grid_y indexekből milyen abszolút koordináta lesz a világban, 
-                # figyelembe véve a rács cellaméretét (resolution) és a rács teljes méretét
+                # itt számolom ki, hogy a grid_x és grid_y indexekből milyen koordináta lesz a világban, figyelembe véve a rács cellaméretét és a rács teljes méretét
                 world_x = grid_x * resolution - grid_size_x/2 + resolution/2
                 world_y = grid_y * resolution - grid_size_y/2 + resolution/2
 
-                # itt kiszámoljuk, hogy az adott cella mennyire van eltolva az akadály közepétől a világ koordinátáiban
+                #az adott cella mennyire van eltolva az akadály közepétől a világ koordinátáiban
                 direction_x = world_x - x
                 direction_y = world_y - y
 
-                # itt forgatjuk el a cella koordinátáit az akadály tengelyeihez képest
+                #el forgatjuk a cella koordinátáit az akadály tengelyeihez képest
                 x_relative_to_obstacle = direction_x * cos(-yaw) - direction_y * sin(-yaw)
                 y_relative_to_obstacle = direction_x * sin(-yaw) + direction_y * cos(-yaw)
 
@@ -110,7 +108,7 @@ def generate_sdf(walls, grid_size_x, grid_size_y):
                     <geometry>
                         <plane>
                             <normal>0 0 1</normal>
-                            <size>{gs_x} {gs_y}</size>
+                            <size>{grid_size_x} {grid_size_y}</size>
                         </plane>
                     </geometry>
                     <material>
@@ -121,7 +119,7 @@ def generate_sdf(walls, grid_size_x, grid_size_y):
                 </visual>
             </link>
         </model>
-'''.format(gs_x=grid_size_x, gs_y=grid_size_y)
+'''.format(grid_size_x, grid_size_y)
 
     sdf_walls = ""
     for i, wall in enumerate(walls):
@@ -177,12 +175,10 @@ def generate_sdf(walls, grid_size_x, grid_size_y):
 
 
 def main():
-    # beállítások 
-    grid_size_x = 20  # méter
+    grid_size_x = 20 
     grid_size_y = 20
-    resolution = 0.1  # méter / cella
+    resolution = 0.1 
 
-    # akadályok definiálása
     walls = [
         {"name": "wall1", "x": 5, "y": 0, "size_x": 0.5, "size_y": 10, "yaw": 0},
         {"name": "wall2", "x": 0, "y": 3, "size_x": 4, "size_y": 0.5, "yaw": 0},
@@ -194,7 +190,6 @@ def main():
         {"name": "box2", "x": -5, "y": -3, "size_x": 2.5, "size_y": 1, "yaw": 0},
     ]
 
-    # OccupancyGrid generálása
     grid = generate_occupancy_grid(walls, grid_size_x, grid_size_y, resolution)
     
     # jelenlegi fájl abszolút elérési útja, pontosabban az a mappa '..', ahol van
@@ -208,18 +203,14 @@ def main():
     os.makedirs(dir_csv, exist_ok=True)
     os.makedirs(dir_sdf, exist_ok=True)
     
-    # fájlok neveu
     name_csv = "occupancy_grid_1.csv"
     name_sdf = "custom_world_1.sdf"
     
-    # ahová létrejönnek a fájlok
     path_csv = os.path.join(dir_csv, name_csv)
     path_sdf = os.path.join(dir_sdf, name_sdf)
 
-    # mentés CSV-be
     np.savetxt(path_csv, grid, fmt="%d", delimiter=",")
 
-    # SDF generálása
     sdf_text = generate_sdf(walls, grid_size_x, grid_size_y)
     with open(path_sdf, "w") as f:
         f.write(sdf_text)
