@@ -20,19 +20,19 @@ class Nav2PathClient(Node):
         self.declare_parameter('path_topic', '/planned_path_dilated')
         path_topic = self.get_parameter('path_topic').get_parameter_value().string_value
         
-        self.declare_parameter("minimum_preemption_time", 2.0)      # sec
+        self.declare_parameter("minimum_preemption_time", 2.0)      #sec
         self.minimum_preemption_time = float(self.get_parameter("minimum_preemption_time").value)
         
-        self.declare_parameter("maximum_goal_shift_distance", 0.30)  # m
+        self.declare_parameter("maximum_goal_shift_distance", 0.30)  #m
         self.maximum_goal_shift_distance = float(self.get_parameter("maximum_goal_shift_distance").value)
         
-        self.declare_parameter("goal_reached_tolerance", 0.8)  # m  
+        self.declare_parameter("goal_reached_tolerance", 0.8)  #m  
         self.goal_reached_tolerance = float(self.get_parameter("goal_reached_tolerance").value)
         
-        self.declare_parameter("path_change_thresh", 0.25)  # m
+        self.declare_parameter("path_change_thresh", 0.25)  #m
         self.path_change_thresh = float(self.get_parameter("path_change_thresh").value)
 
-        self.declare_parameter("path_change_check_points", 25)  # db pose
+        self.declare_parameter("path_change_check_points", 25)  #db pose
         self.path_change_check_points = int(self.get_parameter("path_change_check_points").value)
 
         self.last_goal_sent_time = 0.0    
