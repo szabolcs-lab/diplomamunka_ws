@@ -65,7 +65,6 @@ class MetricsLog(Node):
         self.last_scan = None
         self.last_path = None
         self.last_cmd = None
-
         self.run_started = False
         self.finished = False
         self.start_time = None
@@ -341,7 +340,7 @@ class MetricsLog(Node):
             
             return map_point.point.x, map_point.point.y
         
-        except Exception:
+        except Exception as e:
             self.get_logger().error(f"TF hiba van: {e} !!!!!")
             return None, None
 
