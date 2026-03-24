@@ -182,7 +182,6 @@ class DStarLitePathPlanner(Node):
     # átalakítjuk az útvonalat és elküldjük 
     def path_publish(self, path_cells, map_info):
         points = []
-        
         resolution = float(map_info.resolution)
         origin_x  = float(map_info.origin.position.x)
         origin_y  = float(map_info.origin.position.y)

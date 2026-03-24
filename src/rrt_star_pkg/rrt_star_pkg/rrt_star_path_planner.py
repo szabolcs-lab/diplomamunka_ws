@@ -1,10 +1,8 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
-
 from nav_msgs.msg import OccupancyGrid, Path
 from geometry_msgs.msg import PoseStamped
-
 import numpy as np
 from .rrt_star import RRTStar 
 import math
@@ -13,7 +11,6 @@ import os
 import time
 import csv
 from datetime import datetime
-
 import traceback
 
 
@@ -23,52 +20,46 @@ class RRTStarPathPlanner(Node):
         
         self.get_logger().info('RRT* Path Planner node indul....')
         
-        # paraméterek beolvasása yaml-ből launch fájlba, majd onnan a változókba
         self.declare_parameter('margin', 0.4)
-        self.declare_parameter('resample_step', 0.1) 
-        self.declare_parameter('map_file', 'unknown.csv')
-        self.declare_parameter('scenario', 'static')
         
-        self.map_file = self.get_parameter('map_file').get_parameter_value().string_value
-        self.scenario = self.get_parameter('scenario').get_parameter_value().string_value
+        self.declare_parameter('resample_step', 0.1) 
         self.step = self.get_parameter('resample_step').get_parameter_value().double_value
+        
+        self.declare_parameter('map_file', 'unknown.csv')
+        self.map_file = self.get_parameter('map_file').get_parameter_value().string_value
+        
+        self.declare_parameter('scenario', 'static')
+        self.scenario = self.get_parameter('scenario').get_parameter_value().string_value
+        
         
         self.start = (199, 0)
         self.goal  = (2, 198)  #(0, 199)   
         self.grid = None
         self.path_computed = False
-        self.last_path = None
-        
-        # itt tároljuk az első statikus futás során keletkezett eredményeket     
+        self.last_path = None         
         self.initial_grid = None        
         self.initial_path_length = 0.0
         self.initial_metrics_logged = False
-        
-        # dinamikus futáshoz egyszeri loggolás, hogy változott a térkép 
         self.dynamic_stop_logged = False 
         
-        # itt készítjük elő a cpu és ram mérését; mivel a cpu az eslő hívásnál mindig 0%, ezért egyszer meg kell hívni
+        #a cpu az eslő hívásnál mindig 0%, ezért egyszer meg kell hívni
         self.process_obj = psutil.Process(os.getpid())
         self.process_obj.cpu_percent(interval=None)
         
-        qos = QoSProfile(depth=10) # Buffer méret 10
-        qos.reliability = ReliabilityPolicy.RELIABLE # ezzel garantáljuk, hogy egy üzenet sem fog elveszni
-        qos.durability = DurabilityPolicy.TRANSIENT_LOCAL # amikor egy node később csatlakozik megkapja az utlsó üzenetet
+        qos = QoSProfile(depth=10)
+        qos.reliability = ReliabilityPolicy.RELIABLE
+        qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         
-        # a node feliratkozik map topic-ra és minden üzenetnél egy map_callback üzenet hívódik meg
         self.map_subscription = self.create_subscription(OccupancyGrid, 'map', self.map_callback, qos)
-        # útvonal publikálása a planned_path_dilated topicon       
-        self.path_pub = self.create_publisher(Path, 'planned_path_dilated', qos)
+             
+        self.path_publisher = self.create_publisher(Path, '/planned_path_dilated', qos)
         
-        # metrics_log könytár létrehozása
         self.package_dir = os.path.expanduser('~/diplomamunka_ws/src/rrt_star_pkg')
         self.metrics_log_dir = os.path.join(self.package_dir,'metrics_log')
-        os.makedirs(self.metrics_log_dir, exist_ok=True) # ha a mappa még nem létezik, akkor létrehozzuk
-        
-        # itt állítjuk be, hogy hol legyen a fájl az abszólút elérésiúttal          
+        os.makedirs(self.metrics_log_dir, exist_ok=True)
+                 
         self.metrics_log_file = os.path.join(self.metrics_log_dir, 'rrt_star_metrics_log.csv')
         
-        # első indításkor létrejön az rrt_star_metrics_log.csv fájl a fejlécekkel, ha még nem létezett
         if not os.path.exists(self.metrics_log_file):
             with open(self.metrics_log_file, 'w', newline= '') as f:
                 writer = csv.writer(f)
@@ -80,54 +71,49 @@ class RRTStarPathPlanner(Node):
     def map_callback(self, msg):
         
         try:
-             # ellenőrizzük, hogy megvan-e a térkép
             self.get_logger().info(f"Grid: {msg.info.width}x{msg.info.height}, resolution={msg.info.resolution:.3f}")
             
-            # időt állítunk, ami, majd a log fájlba kell
+            # idő a log fájlba
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            # OccupancyGrid-ből csinálunk egy numpy tömböt, ami bináris rácsokból fog állni: 1 az akadály (>50), 0 a szabad
+            # OccupancyGrid-ből csinálok egy numpy tömböt
             grid = np.array(msg.data).reshape((msg.info.height, msg.info.width))
-            grid_bin = (grid > 50).astype(np.int8)
+            grid_binary = (grid > 50).astype(np.int8)
             
-            # az akadályok körül csinálunk egy biztonsági zónát, kipárnázzuk, hogy a robot tudjon egy biztosági távolságot tartani
+            # az akadályok körül csinálok egy biztonsági zónát
             margin_m = self.get_parameter('margin').get_parameter_value().double_value
             cells_radius = max(1, int(math.ceil(margin_m / float(msg.info.resolution))))
-            grid_dilated = self.obstacles_padding_extends(grid_bin, cells_radius)
+            grid_padding_extend = self.obstacles_padding_extends(grid_binary, cells_radius)
             
             # intitial útvonal
-            # ha még nincs kezdő grid
             if self.initial_grid is None:
-                self.get_logger().info("RRT* indul... (initial)")
+                self.get_logger().info("RRT* indul..... (initial rész)")
+    
+                self.initial_grid = grid_padding_extend.copy()
                 
-                #itt állítjuk be, lemásoljuk az eredetit kezdő gridet, innentől a következő callbacknél már nem lesz None
-                self.initial_grid = grid_dilated.copy()
-                
-                # elindítjuk az RRT* algortimust, beállítjuk a kezdőértékkel
+                # elindítom az RRT* algortimust
                 planner = RRTStar(self.initial_grid, self.start, self.goal, max_iter=5000, step_len=5, goal_sample_rate=0.1, rewire_radius=10)
                 
-                # indítunk egy idő mérést, hogy mennyi idő alatt találja meg az optimális útvonalat
+                #mennyi idő alatt találja meg az optimális útvonalat
                 t0 = time.perf_counter()
-                path_cells = planner.plan() # indítjuk az RRT* útkeresését
+                path_cells = planner.plan() #  RRT* útkeresését
                 t1 = time.perf_counter()
                 planning_time = t1 - t0
                 
-                self.get_logger().info("RRT*  lefutott... (initial)")
+                self.get_logger().info("RRT*  lefutott..... (initial rész)")
                 
                 path_length = 0.0
-                # ha az algoritmus tlált útvonalat, akkor azt elmentjük a last_path-ba
                 if path_cells:
                     self.last_path = path_cells
-                    path_length = self.path_publish(path_cells, msg.info) # a meghívjuk a path_publish függvényt, ami visszaadja az útvonal hosszát egy változóba
-                    self.initial_path_length = path_length # a visszaadott útvonalat beállítjuk
+                    path_length = self.path_publish(path_cells, msg.info)
+                    self.initial_path_length = path_length
                     self.get_logger().info(f"planned cells: {len(path_cells)}")
                 else:
-                    self.get_logger().error("RRT* nem talált útvonalat... (initial)") # ha nincs útvonal kiírjuk
+                    self.get_logger().error("RRT* nem talált útvonalat...... (initial rész)")
                 
-                # lekérjük a cpu és ram használatot
+                # elkérem a cpu és ram használatot
                 used_ram, cpu_percent = self.measure_resources()
                 
-                # ha még nincs metrikus adat, akkor egyszer kiírjuk egy csv-be, tehát ez csak egyszer fut le
                 if not self.initial_metrics_logged:
                     map_name_for_log = f"{self.map_file}_{self.scenario}"
                     with open(self.metrics_log_file, 'a', newline='') as f:
@@ -138,41 +124,37 @@ class RRTStarPathPlanner(Node):
                 return
                    
             # statikus szkenárió
-            # ha a paraméter static, amit az elején beolvasunk
             if self.scenario == 'static':
                 if self.last_path is not None:
-                    # és, ha van útvonal, akkor az utulsót mindig újrapublikáljuk
-                    self.get_logger().info("Statikus változat, a last_path úrjapublikálása...")
+                    self.get_logger().info("Statikus változat, a last_path úrjapublikálása.....")
                     self.path_publish(self.last_path, msg.info)
                 else:
                     self.get_logger().warn("Statikus változat, a last_path üres!!!")
                 return
             
             # dinamiku szkenárió
-            # RRT* természetéből fakadóan nem tervezünk újra, csak megnézzük, hogy a mostani map különbözik-e az eredetitől
-            diff_mask = (self.initial_grid != grid_dilated)
-            ys, xs = np.where(diff_mask)
-            diff_count = len(ys) # naplózzul a változott cellák számát
+            #a mostani map különbözik-e az eredetitől
+            different_cells = (self.initial_grid != grid_padding_extend)
+            ys, xs = np.where(different_cells)
+            different_count = len(ys)
             
-            self.get_logger().info(f"RRT* dinamikus változatában a változott cellák száma: {diff_count}")
+            self.get_logger().info(f"RRT* dinamikus változatában a változott cellák száma: {different_count}")
             
-            # mindenképp az eredeti path-t publikáljuk, mert nincs újratervezés
+            #az eredeti path-t publikálom, mert nincs újratervezés
             if self.last_path is not None:
                 self.path_publish(self.last_path, msg.info)
             
-            # ha nincs változás a griden, akkor nincs mit logolni
-            if diff_count == 0:
+            if different_count == 0:
                 return
             
-            # ha van változás a griden, akkor egyszer logolunk dynamic-stop-ot
+            # ha van változás a griden, akkor egyszer logolok dynamic-stop-ot
             if not self.dynamic_stop_logged:
-                self.get_logger().info("RRT* dinamikus változatban a Map megváltozott, nincs újratervezés RRT* megáll...")
+                self.get_logger().info("RRT* dinamikus változatban a Map megváltozott, nincs újratervezés RRT* megáll.....")
                 
-                # lekérjük a cpu és ram használatot
+                # lekérem a cpu és ram használatot
                 used_ram, cpu_percent = self.measure_resources()
                 map_name_for_log = f"{self.map_file}_{self.scenario}"
                 
-                # a dinamikus - metrikus adatok kiírása egyszer egy csv-be, tehát ez csak egyszer fut le
                 with open(self.metrics_log_file, 'a', newline='') as f:
                     writer = csv.writer(f)
                     writer.writerow([timestamp, 'RRT_star', map_name_for_log, self.scenario, 'dinamikus-stop', 0.0, self.initial_path_length, used_ram, cpu_percent,0])  
@@ -182,40 +164,33 @@ class RRTStarPathPlanner(Node):
             self.get_logger().error(f"map_callback hiba: {e}\n{traceback.format_exc()}")
             
     
-    # átalakítjuk az útvonalat és elküldjük        
+    # átalakítom az útvonalat és elküldöm       
     def path_publish(self, path_cells, map_info):
-        
+        points = []
         
         resolution = float(map_info.resolution)
         origin_x  = float(map_info.origin.position.x)
         origin_y  = float(map_info.origin.position.y)
 
-        # simított útvonal pontok tárolására használjuk
-        points = []
-
-        # átkonvertáljuk a grid pontokat világ koordinátákká
+        # átkonvertálom a grid pontokat világ koordinátákká
         for (row_y, column_x) in path_cells: 
             world_x = origin_x + (column_x + 0.5) * resolution
             world_y = origin_y + (row_y + 0.5) * resolution
             points.append((world_x, world_y))
 
-        # az útvonal pontjait simítjuk, hogy eggyenletes legyen
-        points = self.resample_path(points, step=self.step)
+        points = self.generate_point_with_fix_spaceing(points, step=self.step)
         
-        # kiszámítjuk a teljes út hosszát euklidészi távolságként
         path_length = 0.0
         for i in range(len(points) -1):
             x0, y0 = points[i]
             x1, y1 = points[i+1]
             path_length += math.sqrt((x1 - x0)**2 + (y1 - y0)**2)
 
-        # létrehozunk egy Path objektumot, ami az üzenet lesz
         path_msg = Path()
-        # beállítjuk a headrt a lokális koordinátarendszerrel és az idővel
         path_msg.header.frame_id = 'map'
         path_msg.header.stamp = self.get_clock().now().to_msg()
 
-        # összerakjuk az útvonalat
+        # összerakom az útvonalat
         for world_x, world_y in points:
             pose = PoseStamped()
             pose.header = path_msg.header
@@ -225,101 +200,91 @@ class RRTStarPathPlanner(Node):
             pose.pose.orientation.w = 1.0
             path_msg.poses.append(pose)
 
-        # publikáljuk az összerakott útvonalat
-        self.path_pub.publish(path_msg)
-        self.get_logger().info(f'Az út publikálása befejeződött...')
+        # publikálom az összerakott útvonalat
+        self.path_publisher.publish(path_msg)
+        self.get_logger().info(f'Az út publikálása befejeződött.....')
       
         return path_length
        
-     # akadáloky párnázása 
+    #bővítem az akadályokat egy adott sugarú körrel
     def obstacles_padding_extends(self, grid, radius_cells):
         map_height, map_width = grid.shape
-        dilaated_grid = grid.copy()
+        padding_extends_grid= grid.copy()
         
-        # kiszűrjük az összes akadályt és azok pontjait
         obstacle_rows, obstacle_cols = np.where(grid == 1)
-
-        #négyzet
         radius_squared = radius_cells ** 2
 
-        # végigmegyünk a kiszűrt pontokon és szélesítjük az akadály területét egy megadott sugárral
         for obstacle_row, obstacle_col in zip(obstacle_rows, obstacle_cols):
-            min_row = max(0, obstacle_row - radius_cells)
-            max_row = min(map_height, obstacle_row + radius_cells + 1)
-            min_col = max(0, obstacle_col - radius_cells)
-            max_col = min(map_width, obstacle_col + radius_cells + 1)
+            up_row = max(0, obstacle_row - radius_cells)
+            down_row = min(map_height, obstacle_row + radius_cells + 1)
+            left_col = max(0, obstacle_col - radius_cells)
+            right_col = min(map_width, obstacle_col + radius_cells + 1)
 
-            for row in range(min_row, max_row):
-                row_offset = row - obstacle_row
+            for row in range(up_row, down_row):
+                delta_row_y = row - obstacle_row
 
-                for column in range(min_col, max_col):
-                    column_offset = column - obstacle_col
+                for column in range(left_col, right_col):
+                    delta_column_x = column - obstacle_col
 
-                    #Circle ellenőrzés!
-                    if column_offset**2 + row_offset**2 <= radius_squared:
-                        dilaated_grid[row, column] = 1
+                    if delta_column_x**2 + delta_row_y**2 <= radius_squared:
+                        padding_extends_grid[row, column] = 1
 
-        return dilaated_grid
+        return padding_extends_grid
         
    
     
-    def resample_path(self, path_points, step = None):
-        """
-        Robotikai útvonal resampling egyenletes távolságraa.
-        Minden új pont pontosan 'step' távolságra van egymástól.
-        """
+    # két pont között felosztom az útvonalat egyenletes step távolságra
+    def generate_point_with_fix_spaceing(self, path_points, step = None):
         if step is None:
-            step = getattr(self, 'step', 0.1)  # self.step vagy alapértelmezett 0.1m
+            step = getattr(self, 'step', 0.1)
         
         if len(path_points) < 2:
             return path_points[:]
         
-        resampled_points = [path_points[0]]  # Kezdőpont mindig benne
-        distance_remainder = 0.0  # Hátralévő távolság az előző lépésből
+        generate_points = [path_points[0]] 
+        distance_remainder_last_step = 0.0 
         
-        # Minden szakaszon végigmegyünk
+        # szakaszokon végigmegyek
         for i in range(len(path_points) - 1):
-            # Szakasz kezdő- és végpontja
             start_x, start_y = path_points[i]
             end_x, end_y = path_points[i + 1]
             
-            # Szakasz vektora és hossza
-            segment_dx = end_x - start_x
-            segment_dy = end_y - start_y
-            segment_length = math.hypot(segment_dx, segment_dy)  # Euklidészi távolság
+            # vektora  hossza
+            segment_delta_x = end_x - start_x
+            segment_deltay = end_y - start_y
+            segment_length = math.hypot(segment_delta_x, segment_deltay)
             
-            if segment_length < 1e-9:  # Túl rövid szakasz, kihagyjuk
+            if segment_length < 1e-9:
                 continue
                 
-            # Irány egységvektora
-            unit_vector_x = segment_dx / segment_length
-            unit_vector_y = segment_dy / segment_length
+            # irány egységvektora
+            unit_vector_x = segment_delta_x / segment_length
+            unit_vector_y = segment_deltay / segment_length
             
-            # Első lépés távolsága (maradékból indulunk)
-            distance_along_segment = step - distance_remainder
+            # első lépés távolsága maradékból indul
+            distance_along_segment = step - distance_remainder_last_step
             
-            # Új pontokat generálunk ezen a szakaszon
+            #új pontokat generálok ezen a szakaszon
             while distance_along_segment <= segment_length:
-                # Új pont pozíciója a szakaszon
+                #új pont pozíciója a szakaszon
                 new_point_x = start_x + unit_vector_x * distance_along_segment
                 new_point_y = start_y + unit_vector_y * distance_along_segment
-                resampled_points.append((new_point_x, new_point_y))
+                generate_points.append((new_point_x, new_point_y))
                 
-                distance_along_segment += step  # Következő lépés
+                distance_along_segment = distance_along_segment + step  # következő lépés
             
-            # Maradék távolság frissítése a következő szakaszhoz
-            distance_remainder = segment_length - (distance_along_segment - step)
+            # maradék távolság frissítése a következő szakaszhoz
+            distance_remainder_last_step = segment_length - (distance_along_segment - step)
         
-        # Garantáljuk, hogy a célpont mindig benne legyen
-        last_x, last_y = resampled_points[-1]
+        last_x, last_y = generate_points[-1]
         target_x, target_y = path_points[-1]
         
         if math.hypot(last_x - target_x, last_y - target_y) > 1e-6:
-            resampled_points.append(path_points[-1])
+            generate_points.append(path_points[-1])
         
-        return resampled_points
+        return generate_points
     
-    # visszaadjuk az aktuális memóriahasználatot (MB) és CPU-t (%)
+    #aktuális memóriahasználat (MB) és CPU (%)
     def measure_resources(self):     
         used_ram = self.process_obj.memory_info().rss / (1024 * 1024)
         cpu_percent = self.process_obj.cpu_percent(interval=None)  # az előző hívás óta eltelt időre

@@ -34,11 +34,9 @@ class MapPublication(Node):
         self.map_msg.info.height = self.grid.shape[0]
         self.map_msg.info.width = self.grid.shape[1]
         self.map_msg.info.resolution = 0.1
-        
         self.map_msg.info.origin.position.x = - self.map_msg.info.width * self.map_msg.info.resolution / 2.0
         self.map_msg.info.origin.position.y = - self.map_msg.info.height * self.map_msg.info.resolution / 2.0
-        self.map_msg.info.origin.position.z = 0.0
-        
+        self.map_msg.info.origin.position.z = 0.0 
         self.map_msg.info.origin.orientation.w = 1.0
         
         data = []
@@ -56,13 +54,13 @@ class MapPublication(Node):
         
         self.timer = self.create_timer(1.0, self.publish_map)
         
-        self.get_logger().info('A map_publication node inicializálva....')
+        self.get_logger().info('A map_publication node inicializálva......')
         
     def publish_map(self):
         
         self.map_msg.header.stamp = self.get_clock().now().to_msg()
         self.map_publisher.publish(self.map_msg)
-        self.get_logger().info('Az Occupancy grid publikálva....')
+        self.get_logger().info('Az Occupancy grid publikálva......')
         
 def main(args=None):
     rclpy.init(args=args)
