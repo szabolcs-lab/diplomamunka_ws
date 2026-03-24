@@ -84,14 +84,14 @@ class AStarPathPlanner(Node):
             # az akadályok körül csinálunk egy extend paddinget
             margin_m = self.get_parameter('margin').get_parameter_value().double_value
             cells_radius = max(1, int(math.ceil(margin_m / float(msg.info.resolution))))       
-            grid_dilated = self.obstacles_padding_extends(grid_bin, cells_radius)
+            grid_padding_extend = self.obstacles_padding_extends(grid_bin, cells_radius)
             
             # intitial útvonal
             if self.initial_grid is None:
                 self.get_logger().info("A* indul..... (initial)")
                 
                 #itt állítjuk be a kezdő gridet, innentől a következő callbacknél már nem lesz None
-                self.initial_grid = grid_dilated.copy()
+                self.initial_grid = grid_padding_extend.copy()
                 
                 planner = AStar(self.initial_grid, self.start, self.goal)
                 
@@ -135,7 +135,7 @@ class AStarPathPlanner(Node):
                 return
             
             # dinamiku szkenárió
-            different_cells = (self.initial_grid != grid_dilated)
+            different_cells = (self.initial_grid != grid_padding_extend)
             ys, xs = np.where(different_cells)
             different_count = len(ys)
             

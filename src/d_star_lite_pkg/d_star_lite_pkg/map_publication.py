@@ -34,11 +34,9 @@ class MapPublication(Node):
         self.map_msg.info.height = self.grid.shape[0]
         self.map_msg.info.width = self.grid.shape[1]
         self.map_msg.info.resolution = 0.1
-        
         self.map_msg.info.origin.position.x = - self.map_msg.info.width * self.map_msg.info.resolution / 2.0
         self.map_msg.info.origin.position.y = - self.map_msg.info.height * self.map_msg.info.resolution / 2.0
-        self.map_msg.info.origin.position.z = 0.0
-        
+        self.map_msg.info.origin.position.z = 0.0  
         self.map_msg.info.origin.orientation.w = 1.0
         
         data = []
