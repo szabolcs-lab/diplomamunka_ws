@@ -52,7 +52,7 @@ class Nav2PathClient(Node):
 
         self.path_subscription = self.create_subscription(Path, path_topic, self.path_callback, qos)
 
-        # létrehozunk egy action client-et a Nav2 FollowPath-hoz
+        #  egy action client-et a Nav2 FollowPath-hoz
         self.client = ActionClient(self, FollowPath, 'follow_path')
 
         self.get_logger().info('Várakozás a FollowPath action szerverre...')
@@ -61,8 +61,8 @@ class Nav2PathClient(Node):
         self.get_logger().info('FollowPath action szerver elérhető...')
         self.get_logger().info('Nav2 Path Client node inicializálva...')
 
-    # Path callback - ide érkezik minden új Path
-    def path_callback(self, msg: Path):
+    # Path callback ide érkezik minden új Path
+    def path_callback(self, msg):
 
         if not msg.poses:
             self.get_logger().warn('Nincs Path message...')
@@ -83,7 +83,7 @@ class Nav2PathClient(Node):
             if self.cancel_in_progress:
                 return
 
-            if not self.is_preempt(msg2):
+            if not self.need_update(msg2):
                 return
 
             self.pending_path = msg2
@@ -107,14 +107,14 @@ class Nav2PathClient(Node):
         self.goal_handle = None
 
         if self.pending_path is not None:
-            p = self.pending_path
+            replanned_path = self.pending_path
             self.pending_path = None
             self.get_logger().info('Cancel kész van küldöm az új replanned path-ot...')
-            self.send_path_as_goal(p)
+            self.send_path_as_goal(replanned_path)
             
             
     # Goal küldése a Nav2 FollowPath action szervernek...
-    def send_path_as_goal(self, msg: Path):
+    def send_path_as_goal(self, msg):
         self.get_logger().info(f'FollowPath goal küldése, poses={len(msg.poses)}...')
         
     
@@ -130,7 +130,6 @@ class Nav2PathClient(Node):
         send_goal_future = self.client.send_goal_async(goal_msg)
         send_goal_future.add_done_callback(self.goal_response_callback)
 
-    #Goal response callback
     def goal_response_callback(self, future):
 
         goal_handle = future.result()
@@ -148,7 +147,7 @@ class Nav2PathClient(Node):
         result_future.add_done_callback(self.result_callback)
         
 
-    # Result callback - amikor a robot befejezte a követést
+    # Result callback amikor a robot befejezte a követést
     def result_callback(self, rf):
         result = rf.result().result
         self.get_logger().info('FollowPath befejezte a működést...')
@@ -158,7 +157,7 @@ class Nav2PathClient(Node):
         
         
     # A Path elejének levágása a robothoz legközelebbi pontra...
-    def slice_path_to_robot(self, path_msg: Path): 
+    def slice_path_to_robot(self, path_msg): 
         #MAX_SLICE_PATH = 40
           
         robott_x, robot_y = self.get_actual_robot_pose_in_map()
@@ -172,10 +171,8 @@ class Nav2PathClient(Node):
         for i, path_pose in enumerate(path_msg.poses):
             path_x_point = path_pose.pose.position.x
             path_y_point = path_pose.pose.position.y
- 
             delta_x = path_x_point - robott_x
             delta_y = path_y_point - robot_y
-            
             distance_squared = delta_x * delta_x + delta_y * delta_y
             
             if distance_squared < closest_distance_sq:
@@ -201,9 +198,9 @@ class Nav2PathClient(Node):
     # A robot aktuális pozíciójának lekérdezése map frame-ben...
     def get_actual_robot_pose_in_map(self):
         try:
-            tf = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
-            robot_map_x = tf.transform.translation.x
-            robot_map_y = tf.transform.translation.y
+            tfs = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
+            robot_map_x = tfs.transform.translation.x
+            robot_map_y = tfs.transform.translation.y
             return robot_map_x, robot_map_y
 
         except TransformException as e:
@@ -212,29 +209,28 @@ class Nav2PathClient(Node):
     
     
     #Robot elég közel van-e a path végéhez...    
-    def robot_close_to_path_goal(self, path_msg: Path):
+    def robot_close_to_path_goal(self, path_msg):
         ronot_x, robot_y = self.get_actual_robot_pose_in_map()
         
         if ronot_x is None or not path_msg.poses:
             return False
 
         path_end_x = float(path_msg.poses[-1].pose.position.x)
-        path_end_y = float(path_msg.poses[-1].pose.position.y)
-        
+        path_end_y = float(path_msg.poses[-1].pose.position.y)   
         euclides_diatnace = math.hypot(path_end_x - ronot_x, path_end_y - robot_y)
         
         return euclides_diatnace < self.goal_reached_tolerance
     
     
-    #Eldönti, hogy érdemes-e most preemptelni ...
-    def is_preempt(self, new_path: Path):
+    #Eldönti, hogy érdemes-e most updatelni...
+    def need_update(self, new_path):
         now = time.time()
 
         too_early = now - self.last_goal_sent_time
         if too_early < self.minimum_preemption_time:
             return False
 
-        #ha a célpont nagyon elmozdult, akkor biztos preempt
+        #ha a célpont nagyon elmozdult, akkor biztos update
         new_xy_goal = self.path_goal_xy(new_path)
         if new_xy_goal is None:
             return False
@@ -249,12 +245,12 @@ class Nav2PathClient(Node):
         if goal_distance > self.maximum_goal_shift_distance:
             return True
 
-        #ha a cél nem mozdult, de az út alakja igen, akkor is preempt
+        #ha a cél nem mozdult, de az út alakja igen, akkor is update
         return self.is_path_changed(new_path)
     
     
     #Path vépontjának x és y koordinátái map frameben  
-    def path_goal_xy(self, path_msg: Path):
+    def path_goal_xy(self, path_msg):
         if not path_msg.poses:
             return None
         
@@ -264,8 +260,8 @@ class Nav2PathClient(Node):
     
     
     
-    #Ellenőrzi, hogy az új út elég különböző-e a korábbitól.
-    def is_path_changed(self, new_path_message: Path):
+    #Check, hogy az új út elég különböző-e a korábbitól.
+    def is_path_changed(self, new_path_message):
         new_front_path = self.calculate_front_path(new_path_message)
         
         if new_front_path is None:
@@ -286,7 +282,6 @@ class Nav2PathClient(Node):
             total_distance = total_distance + distance
         
         average_deviation = total_distance / num_comparison_points
-        
         is_bigger = average_deviation > self.path_change_thresh
         
         return is_bigger
@@ -294,12 +289,12 @@ class Nav2PathClient(Node):
     
     #Az út első N pontját beszünl lenyomatot és beletesszük egy  listába....
     def calculate_front_path(self, path_message: Path):
+        front_path = []
         num_checkpoints = min(len(path_message.poses), self.path_change_check_points)
         
         if num_checkpoints <= 0:
             return None
         
-        front_path = []
         
         for i in range(num_checkpoints):
             point = path_message.poses[i].pose.position

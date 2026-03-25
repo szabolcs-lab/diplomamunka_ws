@@ -199,7 +199,7 @@ def main():
     dir_csv = os.path.join(base_dir, "maps")
     dir_sdf = os.path.join(base_dir, "worlds")
     
-    # ha a mappák nem léteznek, akkor létrehozzuk
+    # ha a mappák nem léteznek, akkor létrehozom
     os.makedirs(dir_csv, exist_ok=True)
     os.makedirs(dir_sdf, exist_ok=True)
     

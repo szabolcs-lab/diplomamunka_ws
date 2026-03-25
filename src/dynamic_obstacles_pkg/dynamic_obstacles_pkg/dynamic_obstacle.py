@@ -115,25 +115,25 @@ class DynamicObstacleSpawner(Node):
             
         return poses[-1]
 
-    # ezzel függvénnyel végezzük le spawn-olást
+    # itt megy a spawn-olás
     def spawn_obstacle(self, x, y, z):
         if not os.path.exists(self.model_path):
             self.get_logger().error(f'Az sdf fájl ami az akadály modeljét tartalmazza nem található: {self.model_path}')
             return
 
         # ros_gz_sim objektum-spawn parancs
-        # ugyanazt teesszük, mint cmd-ben : 
+        # mint cmd-ben : 
         # ros2 run ros_gz_sim create -world 'self.world_name' -file 'sself.model_path' -name 'self.obstacle_name' -x str(x) -y str(y) -z str(z)
         cmd = ['ros2', 'run', 'ros_gz_sim', 'create', '-world', self.world_name, '-file', self.model_path, '-name', self.obstacle_name,
                '-x', str(x), '-y', str(y), '-z', str(z)]
 
         self.get_logger().info('Akadály spawn-olása...')
         
-        # összefűzzük a cmd lista elemeit 
+        # összefűzöm a cmd lista elemeit 
         # # ros2 run ros_gz_sim create -world 'self.world_name' -file 'sself.model_path' -name 'self.obstacle_name' -x str(x) -y str(y) -z str(z)
         self.get_logger().info(' '.join(cmd))
 
-        # itt futtatjuk a ROS2 spawn parancsot úgy, mintha a terminálba írtuk volna be
+        # ROS2 spawn parancs futtatása, mintha a terminálba írtuk volna be
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             self.get_logger().info('Az akadály spawn-olása suikerült...')
@@ -141,7 +141,7 @@ class DynamicObstacleSpawner(Node):
             self.get_logger().error(f'Spawn-olás nem sikerült...')
     
     
-    # létrehozunk egy PoseStamped üzenetet, amit publikálunk, majd a dynamic_obstacle topicra       
+    # létrehozok egy PoseStamped üzenetet, amit publikálok, majd a dynamic_obstacle topicra       
     def publish_dynamic_obstacle(self, x, y, z):
         msg = PoseStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
