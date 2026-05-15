@@ -8,6 +8,7 @@
 - git
 - colcon
 - rosdep
+- pytorch
 
 ## A repository letöltése:
 
